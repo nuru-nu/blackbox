@@ -223,8 +223,10 @@ def press(key):
   if key == 'right':
     set('play_dialog', True)
   if key == 'up':
+    set('index', -1)
     set('sub_dir', 'monolog')
   if key == 'down':
+    set('index', -1)
     set('sub_dir', 'dialog')
 
 

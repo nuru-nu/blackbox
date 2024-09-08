@@ -25,6 +25,11 @@ html {
   overflow: scroll;
   margin: 3em 0;
 }
+#paths {
+  white-space: pre;
+  overflow: scroll;
+  margin: 3em 0;
+}
 </style>
 
 <meta charset="UTF-8">
@@ -42,14 +47,15 @@ html {
 <div id="logs"></div>
 <div id="errors"></div>
 
-<div id="state">
-</div>
+<div id="state"></div>
 
 <div>
   <input type="file" id="file" onchange="upload()">
 </div>
 
 <button onclick="send('quit', 'now')">quit</button>
+
+<div id="paths"></div>
 
 <script>
 
@@ -59,6 +65,7 @@ const els = {
   logs: document.getElementById('logs'),
   errors: document.getElementById('errors'),
   state: document.getElementById('state'),
+  paths: document.getElementById('paths'),
 };
 
 function sleep(ms) {
@@ -99,6 +106,11 @@ function render_state() {
     copy.playing = paths[copy.index][0];
   }
   els.state.textContent = JSON.stringify(copy, null, 2);
+  els.paths.textContent = [
+      ...dialog_paths,
+      '','',
+      ...monolog_paths,
+  ].join('\n');
 }
 
 const ws = websocket();
