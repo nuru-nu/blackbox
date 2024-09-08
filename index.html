@@ -6,6 +6,10 @@ html {
   background: black;
   font-family: monospace;
 }
+#noconnection {
+  background: red;
+  color: white;
+}
 #logs {
   white-space: pre;
   max-height: 20vh;
@@ -37,6 +41,8 @@ html {
 
 <h1>Shan Deliar blackbox</h1>
 
+<div id="noconnection">NO CONNECTION</div>
+
 <table>
   <tr><td></td><td><button onclick="send('key', 'up')">up</button></td><td></td></tr>
   <tr><td><button onclick="send('key', 'left')">left</button></td><td></td><td><button onclick="send('key', 'right')">right</button></td></tr>
@@ -62,6 +68,7 @@ html {
 const state = {};
 
 const els = {
+  noconnection: document.getElementById('noconnection'),
   logs: document.getElementById('logs'),
   errors: document.getElementById('errors'),
   state: document.getElementById('state'),
@@ -96,7 +103,11 @@ function websocket() {
   return new WebSocket(`${protocol}//${location.host}/ws`);
 }
 
+let timeoutid = null;
 function render_state() {
+  noconnection.style.display = 'none';
+  clearTimeout(timeoutid);
+  timeoutid = setTimeout(() => noconnection.style.display = 'block', 1000);
   const {monolog_paths, dialog_paths, ...copy} = state;
   const paths = {
       monolog: monolog_paths,
@@ -114,6 +125,7 @@ function render_state() {
 }
 
 const ws = websocket();
+
 ws.addEventListener('message', (event) => {
   const [ty, data] = JSON.parse(event.data);
   // console.log('event', ty, data);
