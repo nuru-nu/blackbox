@@ -292,7 +292,7 @@ async def post_upload(request: web.Request):
 
   if field.name == 'file':
     filename = field.filename
-    mime_type = field.headers[aiohttp.hdrs.CONTENT_TYPE]
+    mime_type = field.headers.get(aiohttp.hdrs.CONTENT_TYPE)
     if mime_type not in ('application/zip', 'application/x-zip-compressed'):
       raise web.HTTPUnprocessableEntity(text=f'Cannot process mime_type="{mime_type}"')
     file_path = os.path.join(data_dir, filename)
