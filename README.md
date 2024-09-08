@@ -1,5 +1,13 @@
 # Shan Deliar's blackbox
 
+## Setup
+
+Prerequisites on raspbian bullseye:
+
+```bash
+sudo apt install libsdl2-mixer-2.0-0 libsdl2-dev libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 -y
+```
+
 Installation:
 
 ```bash
@@ -21,7 +29,10 @@ sudo rabbitmq-plugins enable rabbitmq_management
 sudo rabbitmq-plugins enable rabbitmq_mqtt
 
 sudo rabbitmqctl add_user 'blackbox'  # password: blackbox
-sudo rabbitmqctl set_permissions 'blackbox' '' '.*' '.*'
+sudo rabbitmqctl set_permissions -p / blackbox ".*" ".*" ".*"
+
+# if something is not working check:
+# /var/log/rabbitmq/rabbit@*.log
 ```
 
 Similar commands on OS X
@@ -35,3 +46,11 @@ CONF_ENV_FILE="/opt/homebrew/etc/rabbitmq/rabbitmq-env.conf" /opt/homebrew/opt/r
 rabbitmqctl add_user 'blackbox'  # password: blackbox
 rabbitmqctl set_permissions 'blackbox' '' '.*' '.*'
 ```
+
+## Troubleshooting
+
+TODO
+
+## raspbian hotspot
+
+TODO

@@ -1,0 +1,149 @@
+<!doctype HTML>
+
+<style>
+html {
+  color: #0f0;
+  background: black;
+  font-family: monospace;
+}
+#logs {
+  white-space: pre;
+  max-height: 20vh;
+  overflow: scroll;
+  .debug { color: green; display: none; }
+  .warning { color: orange; }
+  .error { color: red; }
+}
+#debug:checked ~ #logs .debug {
+  display: block;
+}
+#errors {
+  color: red;
+}
+#state {
+  white-space: pre;
+  overflow: scroll;
+  margin: 3em 0;
+}
+</style>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<h1>Shan Deliar blackbox</h1>
+
+<table>
+  <tr><td></td><td><button onclick="send('key', 'up')">up</button></td><td></td></tr>
+  <tr><td><button onclick="send('key', 'left')">left</button></td><td></td><td><button onclick="send('key', 'right')">right</button></td></tr>
+  <tr><td></td><td><button onclick="send('key', 'down')">down</button></td><td></td></tr>
+</table>
+
+<input type="checkbox" id="debug"> show debug
+<div id="logs"></div>
+<div id="errors"></div>
+
+<div id="state">
+</div>
+
+<div>
+  <input type="file" id="file" onchange="upload()">
+</div>
+
+<button onclick="send('quit', 'now')">quit</button>
+
+<script>
+
+const state = {};
+
+const els = {
+  logs: document.getElementById('logs'),
+  errors: document.getElementById('errors'),
+  state: document.getElementById('state'),
+};
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function log(level, msg) {
+  const el = document.createElement('div');
+  el.classList.add(level);
+  el.textContent = `${level.toUpperCase()} – ${msg}\n`;
+  els.logs.insertBefore(el, els.logs.firstChild);
+  const MAX_LOG_MESSAGES = 10 * 1000;
+  while (els.logs.children.length > MAX_LOG_MESSAGES) {
+    els.logs.removeChild(els.logs.children[MAX_LOG_MESSAGES]);
+  }
+}
+
+function error(msg) {
+  els.errors.textContent = msg;
+  log('error', msg);
+}
+
+function websocket() {
+  const protocol = {
+      "http:": "ws:",
+      "https:": "wss:",
+  }[location.protocol];
+  return new WebSocket(`${protocol}//${location.host}/ws`);
+}
+
+function render_state() {
+  const {monolog_paths, dialog_paths, ...copy} = state;
+  copy.playing = {
+      monolog: monolog_paths,
+      dialog: dialog_paths
+  }[copy.sub_dir][copy.index][0];
+  els.state.textContent = JSON.stringify(copy, null, 2);
+}
+
+const ws = websocket();
+ws.addEventListener('message', (event) => {
+  const [ty, data] = JSON.parse(event.data);
+  // console.log('event', ty, data);
+  if (ty === 'log') {
+    const [ts, level, msg] = data;
+    log(level, `[${ts}] ${msg}`);
+  }
+  if (ty === 'state') {
+    Object.assign(state, data);
+    render_state();
+  }
+  if (ty === 'set') {
+    const [key, value] = data;
+    state[key] = value;
+    render_state();
+  }
+});
+
+async function upload() {
+  const fileInput = document.getElementById('file');
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  const resp = await fetch('/upload', {
+      method: 'POST',
+      body: formData
+  });
+  if (resp.status !== 200) {
+    error('COULD NOT UPLOAD: ' + resp.statusText);
+    return;
+  }
+  const data = await resp.json();
+  log('info', 'uploaded: ' + JSON.stringify(data));
+}
+
+async function send(key, value) {
+  const resp = await fetch('/set', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({key, value}),
+  });
+  if (resp.status !== 200) {
+    error(`COULD NOT SEND ${key}=${value}: ${resp.statusText}`)
+  }
+}
+
+
+</script>

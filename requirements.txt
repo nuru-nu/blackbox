@@ -1,4 +1,6 @@
 aiohttp
 colorama
+evdev; sys_platform == 'linux'
+keyboard; sys_platform == 'darwin'
 paho-mqtt
 pygame
