@@ -95,7 +95,7 @@ function render_state() {
       monolog: monolog_paths,
       dialog: dialog_paths
   }[copy.sub_dir];
-  if (copy.index < paths.length) {
+  if (paths[copy.index]) {
     copy.playing = paths[copy.index][0];
   }
   els.state.textContent = JSON.stringify(copy, null, 2);
