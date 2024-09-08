@@ -163,7 +163,7 @@ def transition():
   paths = get('dialog_paths')
   new_index = get('index') + 1
   while not get('play_dialog') or new_index >= len(paths):
-    if get('sub_dir') == 'monolog':
+    if get('sub_dir') == 'monolog' and len(get('monolog_paths')):
       log('info', 'switch to monolog index=0')
       set('index', 0)
       return get('monolog_paths')[0]
