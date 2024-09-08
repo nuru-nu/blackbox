@@ -6,7 +6,7 @@ import json
 import os
 import os.path
 import platform
-import sys
+import shlex
 import threading
 import time
 
@@ -275,7 +275,7 @@ def update_from_zip(file_path):
   # if os.path.exists(f'{data_dir}/monolog'): shutil.rmtree(f'{data_dir}/monolog')
   # if os.path.exists(f'{data_dir}/dialog'): shutil.rmtree(f'{data_dir}/dialog')
 
-  os.system(f'unzip -d {base_dir} {file_path}')
+  os.system(f'unzip -d {shlex.quote(base_dir)} {shlex.quote(file_path)}')
   set('monolog_paths', get_paths(f'{base_dir}/monolog'))
   set('dialog_paths', get_paths(f'{base_dir}/dialog'))
   set('base_dir', base_dir)
