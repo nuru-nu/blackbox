@@ -1,7 +1,8 @@
 # pip install paho-mqtt pygame colorama
 
-mp3_path = '/Users/ast/Downloads/audio.mp3'
-viseme_path = '/Users/ast/Downloads/visemes.json'
+import os.path
+mp3_path = os.path.expanduser('~/Downloads/audio.mp3')
+viseme_path = os.path.expanduser('~/Downloads/visemes.json')
 shelly = '3494546EF893'
 
 import json
