@@ -91,10 +91,13 @@ function websocket() {
 
 function render_state() {
   const {monolog_paths, dialog_paths, ...copy} = state;
-  copy.playing = {
+  const paths = {
       monolog: monolog_paths,
       dialog: dialog_paths
-  }[copy.sub_dir][copy.index][0];
+  }[copy.sub_dir];
+  if (copy.index < paths.length) {
+    copy.playing = paths[copy.index][0];
+  }
   els.state.textContent = JSON.stringify(copy, null, 2);
 }
 
