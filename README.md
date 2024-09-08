@@ -49,7 +49,8 @@ rabbitmqctl set_permissions 'blackbox' '' '.*' '.*'
 
 ## Troubleshooting
 
-TODO
+1. connect to the web UI at :8080
+2. check mqtt connection in UI
 
 ## raspbian hotspot
 

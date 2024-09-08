@@ -6,7 +6,9 @@ import json
 import os
 import os.path
 import platform
+import random
 import shlex
+import socket
 import threading
 import time
 
@@ -25,15 +27,22 @@ running = True
 
 colorama.init()
 
-broker = '127.0.0.1'
+def get_ip(hostname):
+  try:
+    ip_address = socket.gethostbyname(hostname)
+    print(hostname, '->', ip_address)
+    return ip_address
+  except socket.gaierror:
+    raise ValueError(f"Unable to resolve hostname: {hostname}")
+
+
+broker = 'unuru.local'
 port = 1883
 
 client = mqtt.Client()
-client.username_pw_set('guest', 'guest')
+client.username_pw_set('blackbox', 'blackbox')
 
-client.connect(broker, port, 60)
-
-connected = False
+client.connect(get_ip(broker), port, 60)
 
 
 loop = asyncio.get_event_loop()
@@ -75,25 +84,13 @@ def log(level, msg):
   print(f'[{tsfmt}{ts}{fmt0}] {msgfmt}{msg}{fmt0}')
 
 
-def on_connect(client, userdata, flags, reason_code):
-  log('info', f"Connected with result code {reason_code}")
-  global connected
-  connected = True
-
-# def on_publish(client, userdata, mid):
-#     print('on_publish', mid)
-# client.on_publish = on_publish
-
-client.on_connect = on_connect
-
-# client.loop_forever()
-
-client.loop_start()
-
-def shelly_set(value: int):
+def shelly_set(below22: float):
+  value = get('value_base') + below22 * get('value_mult')
+  brightness = min(100, int(value / 255 * 100))
+  log('debug', f'shelly_set {int(value)} -> {brightness}')
   msg = client.publish(f'shellies/ShellyVintage-{shelly}/light/0/set', json.dumps({
       'turn': 'on',
-      'brightness': int(value / 255 * 100),
+      'brightness': brightness,
       'transition': 0,
   }))
   # print(msg.mid)
@@ -105,11 +102,17 @@ state_lock = threading.Lock()
 state = dict(
 
     base_dir=None,
-    sub_dir='monolog',
+    sub_dir='dialog',
     index=-1,
     monolog_paths=[],
     dialog_paths=[],
     play_dialog=False,
+
+    flickering=True,
+    value_base=80,
+    value_mult=3.0,
+
+    mqtt='NOT CONNECTED',
 
     visemes_count=-1,
     visemes_index=-1,
@@ -137,6 +140,7 @@ def init_paths():
 init_paths()
 
 def set(key, value):
+  assert key in state, key
   with state_lock:
     state[key] = value
   syncify(add_event, ('set', (key, value)))
@@ -194,15 +198,18 @@ def play_one(mp3_path, viseme_path):
   visemes = json.load(open(viseme_path))
   set('visemes_count',  len(visemes))
 
+  set('flickering', False)
+
   for i, (offset, viseme_id) in enumerate(visemes):
     set('visemes_index', i)
     pos = pygame.mixer.music.get_pos()
     sleep = max(0, offset / 1e7 - pos / 1000)
-    value = 40 + viseme_id
-    log('debug', f'viseme {i} - sleeping {int(sleep*1000)}ms -> set to {value}')
+    log('debug', f'viseme {i} - sleeping {int(sleep*1000)}ms -> viseme_id={viseme_id}')
     time.sleep(sleep)
-    shelly_set(value)
+    shelly_set(viseme_id)
   finish_player()
+
+  set('flickering', True)
 
 
 def finish_player():
@@ -217,6 +224,23 @@ def finish_player():
 player_thread = threading.Thread(target=player)
 player_thread.start()
 
+
+def on_connect(client, userdata, flags, reason_code):
+  set('mqtt', f'connected: reason_code={reason_code}')
+
+client.on_connect = on_connect
+client.loop_start()
+
+
+def flicker():
+  while True:
+    if get('flickering'):
+      shelly_set(random.random() * 5)
+    time.sleep(0.05 + 0.1 * random.random())
+
+
+flicker_thread = threading.Thread(target=flicker)
+flicker_thread.start()
 
 def press(key):
   log('info', f'pressed {key}')

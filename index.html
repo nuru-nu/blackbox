@@ -10,6 +10,13 @@ html {
   background: red;
   color: white;
 }
+table td {
+  text-align: center;
+}
+.flex {
+  display: flex;
+  gap: 1rem;
+}
 #logs {
   white-space: pre;
   max-height: 20vh;
@@ -47,7 +54,24 @@ html {
   <tr><td></td><td><button onclick="send('key', 'up')">up</button></td><td></td></tr>
   <tr><td><button onclick="send('key', 'left')">left</button></td><td></td><td><button onclick="send('key', 'right')">right</button></td></tr>
   <tr><td></td><td><button onclick="send('key', 'down')">down</button></td><td></td></tr>
+  <tr><td></td><td></td><td></td></tr>
 </table>
+
+<div class="flex">
+  <div>value_base</div>
+  <div><button onclick="send('value_base', 20)">20</button></div>
+  <div><button onclick="send('value_base', 40)">40</button></div>
+  <div><button onclick="send('value_base', 80)">80</button></div>
+  <div><button onclick="send('value_base', 100)">100</button></div>
+</div>
+
+<div class="flex">
+  <div>value_mult</div>
+  <div><button onclick="send('value_mult', 1.0)">1.0</button></div>
+  <div><button onclick="send('value_mult', 2.0)">2.0</button></div>
+  <div><button onclick="send('value_mult', 3.0)">3.0</button></div>
+  <div><button onclick="send('value_mult', 4.0)">4.0</button></div>
+</div>
 
 <input type="checkbox" id="debug"> show debug
 <div id="logs"></div>
@@ -59,9 +83,9 @@ html {
   <input type="file" id="file" onchange="upload()">
 </div>
 
-<button onclick="send('quit', 'now')">quit</button>
-
 <div id="paths"></div>
+
+<button onclick="send('quit', 'now')">quit</button>
 
 <script>
 
@@ -103,10 +127,7 @@ function websocket() {
   return new WebSocket(`${protocol}//${location.host}/ws`);
 }
 
-let timeoutid = null;
 function render_state() {
-  noconnection.style.display = 'none';
-  clearTimeout(timeoutid);
   timeoutid = setTimeout(() => noconnection.style.display = 'block', 1000);
   const {monolog_paths, dialog_paths, ...copy} = state;
   const paths = {
@@ -126,7 +147,10 @@ function render_state() {
 
 const ws = websocket();
 
+let timeoutid = null;
 ws.addEventListener('message', (event) => {
+  noconnection.style.display = 'none';
+  clearTimeout(timeoutid);
   const [ty, data] = JSON.parse(event.data);
   // console.log('event', ty, data);
   if (ty === 'log') {
