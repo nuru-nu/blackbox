@@ -89,4 +89,74 @@ Then follow logs with `sudo journalctl -f -u blackbox`
 
 ## raspbian hotspot
 
-TODO
+```bash
+# https://chatgpt.com/share/be8eca39-1151-4418-87ee-1b1700fc24e7
+
+sudo apt install hostapd dnsmasq -y
+
+# safety copies !
+test -f /etc/dhcpcd.conf.no_hotspot || sudo cp /etc/dhcpcd.conf /etc/dhcpcd.conf.no_hotspot
+test -f /etc/dnsmasq.conf.no_hotspot || sudo cp /etc/dnsmasq.conf /etc/dnsmasq.conf.no_hotspot
+
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+
+# reset configs
+sudo cp /etc/dhcpcd.conf.no_hotspot /etc/dhcpcd.conf.hotspot
+sudo cp /etc/dnsmasq.conf.no_hotspot /etc/dnsmasq.conf.hotspot
+
+# update configs
+cat <<EOF | sudo tee -a /etc/dhcpcd.conf.hotspot > /dev/null
+interface wlan0
+    static ip_address=192.168.4.1/24
+    nohook wpa_supplicant
+EOF
+cat <<EOF | sudo tee -a /etc/dnsmasq.conf.hotspot > /dev/null
+interface=wlan0
+dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
+EOF
+cat <<EOF | sudo tee /etc/hostapd/hostapd.conf > /dev/null
+interface=wlan0
+driver=nl80211
+ssid=unuru
+hw_mode=g
+channel=7
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=opensecret
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+EOF
+grep /etc/hostapd/hostapd.conf /etc/default/hostapd || ( echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee -a /etc/default/hostapd > /dev/null )
+
+# scripts
+cat <<EOF > ~/stop_hotspot.sh
+#!/bin/bash
+sudo cp /etc/dhcpcd.conf.no_hotspot /etc/dhcpcd.conf
+sudo cp /etc/dnsmasq.conf.no_hotspot /etc/dnsmasq.conf
+sudo systemctl disable hostapd
+sudo systemctl disable dnsmasq
+sudo systemctl restart dhcpcd
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+sudo reboot
+EOF
+chmod a+x stop_hotspot.sh
+
+cat <<EOF > ~/start_hotspot.sh
+#!/bin/bash
+sudo cp /etc/dhcpcd.conf.hotspot /etc/dhcpcd.conf
+sudo cp /etc/dnsmasq.conf.hotspot /etc/dnsmasq.conf
+sudo systemctl unmask hostapd
+sudo systemctl unmask dnsmasq
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+sudo systemctl restart dhcpcd
+sudo systemctl restart hostapd
+sudo systemctl restart dnsmasq
+EOF
+chmod a+x start_hotspot.sh
+```
