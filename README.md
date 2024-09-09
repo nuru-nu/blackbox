@@ -52,6 +52,8 @@ rabbitmqctl set_permissions 'blackbox' '' '.*' '.*'
 1. connect to the web UI at :8080
 2. check mqtt connection in UI
 3. `ssh nuru@unuru.local -L15673:localhost:15672` and then check mqtt server at http://localhost/15673 (guest/guest)
+4. `mosquitto_sub -h 192.168.4.1 -p 1883 -u "blackbox" -P "blackbox" -t "test/topic"` and
+   `mosquitto_pub -h 192.168.4.1 -p 1883 -u "blackbox" -P "blackbox" -t "test/topic" -m 'Hello, World'`
 
 
 ## Set up as service
