@@ -51,6 +51,41 @@ rabbitmqctl set_permissions 'blackbox' '' '.*' '.*'
 
 1. connect to the web UI at :8080
 2. check mqtt connection in UI
+3. `ssh nuru@unuru.local -L15673:localhost:15672` and then check mqtt server at http://localhost/15673 (guest/guest)
+
+
+## Set up as service
+
+Make sure to execute this in the repo, after verifying that `./env/bin/python blackbox.py` works
+
+```bash
+cat <<EOF | sudo tee /etc/systemd/system/blackbox.service
+[Unit]
+Description=Blackbox Service
+After=network.target
+
+[Service]
+Nice=-10
+ExecStart=$(pwd)/env/bin/python $(pwd)/blackbox.py
+WorkingDirectory=$(pwd)
+User=$USER
+Restart=always
+RestartSec=3
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=blackbox
+PAMName=login
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable blackbox.service
+sudo systemctl start blackbox.service
+```
+
+Then follow logs with `sudo journalctl -f -u blackbox`
 
 ## raspbian hotspot
 

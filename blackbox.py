@@ -21,7 +21,7 @@ import pygame
 
 shelly = '3494546EF893'
 device_name = 'HID 0e8f:2517'
-data_dir = '/tmp/blackbox_data'
+data_dir = './data/'
 os.makedirs(data_dir, exist_ok=True)
 running = True
 
