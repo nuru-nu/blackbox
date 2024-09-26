@@ -280,7 +280,7 @@ else:
     for event in device.read_loop():
       if event.type == evdev.ecodes.EV_KEY:
         key_event = evdev.categorize(event)
-        #print(key_event, key_event.keystate, key_event.keycode)
+        log('debug', f'key_event keystate={key_event.keystate} keycode={key_event.keycode}')
         if key_event.keystate == key_event.key_down and key_event.keycode == 'KEY_B':
           press('up')
         if key_event.keystate == key_event.key_down and key_event.keycode == 'KEY_UP':
