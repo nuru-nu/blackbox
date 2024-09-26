@@ -283,9 +283,9 @@ else:
         log('debug', f'key_event keystate={key_event.keystate} keycode={key_event.keycode}')
         if key_event.keystate == key_event.key_down and key_event.keycode == 'KEY_B':
           press('up')
-        if key_event.keystate == key_event.key_down and key_event.keycode == 'KEY_UP':
+        if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_UP', 'KEY_PAGEUP'):
           press('left')
-        if key_event.keystate == key_event.key_down and key_event.keycode == 'KEY_DOWN':
+        if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_DOWN', 'KEY_PAGEDOWN'):
           press('right')
         if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_F5', 'KEY_ESC'):
           press('down')
