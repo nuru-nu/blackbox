@@ -213,7 +213,7 @@ def play_one(mp3_path, viseme_path):
     set('visemes_index', i)
     pos = pygame.mixer.music.get_pos()
     sleep = max(0, offset / 1e7 - pos / 1000)
-    log('debug', f'viseme {i} - sleeping {int(sleep*1000)}ms -> viseme_id={viseme_id}')
+    # log('debug', f'viseme {i} - sleeping {int(sleep*1000)}ms -> viseme_id={viseme_id}')
     time.sleep(sleep)
     shelly_set(viseme_id)
   finish_player()
