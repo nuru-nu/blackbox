@@ -103,6 +103,7 @@ def shelly_set(below22: float):
 
 
 pygame.mixer.init()
+pygame.mixer.music.set_volume(1.0)
 
 state_lock = threading.Lock()
 state = dict(
@@ -113,6 +114,7 @@ state = dict(
     monolog_paths=[],
     dialog_paths=[],
     play_dialog=False,
+    volume=0.5,
 
     flickering=True,
     value_base=80,
@@ -200,6 +202,7 @@ def play_one(mp3_path, viseme_path):
   log('info', f'play {mp3_path}')
   pygame.mixer.music.load(mp3_path)
   pygame.mixer.music.play()
+  pygame.mixer.music.set_volume(get('volume'))
 
   visemes = json.load(open(viseme_path))
   set('visemes_count',  len(visemes))
@@ -251,7 +254,15 @@ flicker_thread.start()
 def press(key):
   log('info', f'pressed {key}')
   if key == 'right':
-    set('play_dialog', True)
+    if get('sub_dir') == 'dialog':
+      set('play_dialog', True)
+    else:
+      set('volume', min(1.0, get('volume') + 0.05))
+      pygame.mixer.music.set_volume(get('volume'))
+  if key == 'left':
+    if get('sub_dir') == 'monolog':
+      set('volume', max(0.0, get('volume') - 0.05))
+      pygame.mixer.music.set_volume(get('volume'))
   if key == 'up':
     set('index', -1)
     set('sub_dir', 'monolog')
