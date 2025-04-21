@@ -1,5 +1,14 @@
 # Shan Deliar's blackbox
 
+
+## Basic use
+
+- connect to http://unuru.local:8080 (on wlan ssid=unuru) to check
+- initially, the system should be in dialog mode
+- "up" -> monolog, "down" -> dialog (though only after current finishes)
+- in monolog mode, left/right control loudness
+- in dialog mode, right activates next (unless already playing)
+
 ## Setup
 
 Prerequisites on raspbian bullseye:
