@@ -231,7 +231,6 @@ def finish_player():
 
 
 player_thread = threading.Thread(target=player)
-player_thread.start()
 
 
 def on_connect(client, userdata, flags, reason_code):
@@ -249,7 +248,6 @@ def flicker():
 
 
 flicker_thread = threading.Thread(target=flicker)
-flicker_thread.start()
 
 def press(key):
   log('info', f'pressed {key}')
@@ -273,6 +271,7 @@ def press(key):
 
 if platform.system() == 'Darwin':
   log('warning', 'running OS X - no support for evdev!')
+  events_thread = None
 
 else:
   import evdev
@@ -308,7 +307,6 @@ else:
           press('down')
 
   events_thread = threading.Thread(target=events)
-  events_thread.start()
 
 
 def update_from_zip(file_path):
@@ -393,6 +391,10 @@ async def post_set(request: web.Request):
     set(data['key'], data['value'])
   return web.json_response(dict(status='ok'))
 
+
+player_thread.start()
+flicker_thread.start()
+events_thread.start()
 
 app = web.Application()
 app.add_routes([
