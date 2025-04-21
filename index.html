@@ -51,26 +51,26 @@ table td {
 <div id="noconnection">NO CONNECTION</div>
 
 <table>
-  <tr><td></td><td><button onclick="send('key', 'up')">up</button></td><td></td></tr>
-  <tr><td><button onclick="send('key', 'left')">left</button></td><td></td><td><button onclick="send('key', 'right')">right</button></td></tr>
-  <tr><td></td><td><button onclick="send('key', 'down')">down</button></td><td></td></tr>
+  <tr><td></td><td><button data-key="ArrowUp" onclick="send('key', 'up')">up</button></td><td></td></tr>
+  <tr><td><button data-key="ArrowLeft" onclick="send('key', 'left')">left</button></td><td></td><td><button data-key="ArrowRight" onclick="send('key', 'right')">right</button></td></tr>
+  <tr><td></td><td><button data-key="ArrowDown" onclick="send('key', 'down')">down</button></td><td></td></tr>
   <tr><td></td><td></td><td></td></tr>
 </table>
 
 <div class="flex">
   <div>value_base</div>
-  <div><button onclick="send('value_base', 20)">20</button></div>
-  <div><button onclick="send('value_base', 40)">40</button></div>
-  <div><button onclick="send('value_base', 80)">80</button></div>
-  <div><button onclick="send('value_base', 100)">100</button></div>
+  <div><button data-key="A" onclick="send('value_base', 20)">20</button></div>
+  <div><button data-key="S" onclick="send('value_base', 40)">40</button></div>
+  <div><button data-key="D" onclick="send('value_base', 80)">80</button></div>
+  <div><button data-key="F" onclick="send('value_base', 100)">100</button></div>
 </div>
 
 <div class="flex">
   <div>value_mult</div>
-  <div><button onclick="send('value_mult', 1.0)">1.0</button></div>
-  <div><button onclick="send('value_mult', 2.0)">2.0</button></div>
-  <div><button onclick="send('value_mult', 3.0)">3.0</button></div>
-  <div><button onclick="send('value_mult', 4.0)">4.0</button></div>
+  <div><button data-key="Z" onclick="send('value_mult', 1.0)">1.0</button></div>
+  <div><button data-key="X" onclick="send('value_mult', 2.0)">2.0</button></div>
+  <div><button data-key="C" onclick="send('value_mult', 3.0)">3.0</button></div>
+  <div><button data-key="V" onclick="send('value_mult', 4.0)">4.0</button></div>
 </div>
 
 <input type="checkbox" id="debug"> show debug
@@ -195,6 +195,17 @@ async function send(key, value) {
     error(`COULD NOT SEND ${key}=${value}: ${resp.statusText}`)
   }
 }
+
+const buttons = Object.fromEntries(
+  [...document.querySelectorAll('button[data-key]')].map(b => {
+    b.textContent += ` [${b.dataset.key.toLowerCase().replace(/^(key|arrow)/, '')}]`;
+    return [b.dataset.key, b];
+  })
+);
+console.log(buttons)
+document.addEventListener('keydown', event => {
+  (buttons[event.key] || {click: () => {}}).click();
+});
 
 
 </script>
