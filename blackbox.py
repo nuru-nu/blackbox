@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import collections
 import datetime
@@ -19,10 +20,15 @@ import paho.mqtt.client as mqtt
 import pygame
 
 
-shelly = '3494546EF893'
-device_name = 'HID 0e8f:2517'
-data_dir = './data/'
-os.makedirs(data_dir, exist_ok=True)
+parser = argparse.ArgumentParser()
+parser.add_argument('--shelly', default='3494546EF893')
+parser.add_argument('--device_name', default='HID 0e8f:2517')
+parser.add_argument('--data_dir', default='./data/')
+parser.add_argument('--broker', default='unuru.local')
+
+args = parser.parse_args()
+
+os.makedirs(args.data_dir, exist_ok=True)
 running = True
 
 colorama.init()
@@ -36,14 +42,13 @@ def get_ip(hostname):
     raise ValueError(f"Unable to resolve hostname: {hostname}")
 
 
-broker = 'unuru.local'
 port = 1883
 
 client = mqtt.Client()
 client.username_pw_set('blackbox', 'blackbox')
 
-client.connect(get_ip(broker), port, 60)
-
+if args.broker:
+  client.connect(get_ip(args.broker), port, 60)
 
 loop = asyncio.get_event_loop()
 
@@ -85,10 +90,11 @@ def log(level, msg):
 
 
 def shelly_set(below22: float):
+  if not args.shelly: return
   value = get('value_base') + below22 * get('value_mult')
   brightness = min(100, int(value / 255 * 100))
   log('debug', f'shelly_set {int(value)} -> {brightness}')
-  msg = client.publish(f'shellies/ShellyVintage-{shelly}/light/0/set', json.dumps({
+  msg = client.publish(f'shellies/ShellyVintage-{args.shelly}/light/0/set', json.dumps({
       'turn': 'on',
       'brightness': brightness,
       'transition': 0,
@@ -97,6 +103,7 @@ def shelly_set(below22: float):
 
 
 pygame.mixer.init()
+pygame.mixer.music.set_volume(1.0)
 
 state_lock = threading.Lock()
 state = dict(
@@ -107,6 +114,7 @@ state = dict(
     monolog_paths=[],
     dialog_paths=[],
     play_dialog=False,
+    volume=0.5,
 
     flickering=True,
     value_base=80,
@@ -131,7 +139,7 @@ def get_paths(directory):
 
 
 def init_paths():
-  paths = sorted(glob.glob(f'{data_dir}/*/monolog/*.mp3'))
+  paths = sorted(glob.glob(f'{args.data_dir}/*/monolog/*.mp3'))
   if paths:
     state['base_dir'] = '/'.join(paths[-1].split('/')[:-2])
     state['monolog_paths'] = get_paths(f'{state["base_dir"]}/monolog')
@@ -194,6 +202,7 @@ def play_one(mp3_path, viseme_path):
   log('info', f'play {mp3_path}')
   pygame.mixer.music.load(mp3_path)
   pygame.mixer.music.play()
+  pygame.mixer.music.set_volume(get('volume'))
 
   visemes = json.load(open(viseme_path))
   set('visemes_count',  len(visemes))
@@ -204,7 +213,7 @@ def play_one(mp3_path, viseme_path):
     set('visemes_index', i)
     pos = pygame.mixer.music.get_pos()
     sleep = max(0, offset / 1e7 - pos / 1000)
-    log('debug', f'viseme {i} - sleeping {int(sleep*1000)}ms -> viseme_id={viseme_id}')
+    # log('debug', f'viseme {i} - sleeping {int(sleep*1000)}ms -> viseme_id={viseme_id}')
     time.sleep(sleep)
     shelly_set(viseme_id)
   finish_player()
@@ -245,7 +254,15 @@ flicker_thread.start()
 def press(key):
   log('info', f'pressed {key}')
   if key == 'right':
-    set('play_dialog', True)
+    if get('sub_dir') == 'dialog':
+      set('play_dialog', True)
+    else:
+      set('volume', min(1.0, get('volume') + 0.05))
+      pygame.mixer.music.set_volume(get('volume'))
+  if key == 'left':
+    if get('sub_dir') == 'monolog':
+      set('volume', max(0.0, get('volume') - 0.05))
+      pygame.mixer.music.set_volume(get('volume'))
   if key == 'up':
     set('index', -1)
     set('sub_dir', 'monolog')
@@ -273,19 +290,19 @@ else:
         return device
       i += 1
 
-  device = get_device(device_name)
-  assert device is not None, f'missing device "{device_name}"'
+  device = get_device(args.device_name)
+  assert device is not None, f'missing device "{args.device_name}"'
 
   def events():
     for event in device.read_loop():
       if event.type == evdev.ecodes.EV_KEY:
         key_event = evdev.categorize(event)
-        print(key_event, key_event.keystate, key_event.keycode)
+        log('debug', f'key_event keystate={key_event.keystate} keycode={key_event.keycode}')
         if key_event.keystate == key_event.key_down and key_event.keycode == 'KEY_B':
           press('up')
-        if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_UP', 'KEY_LEFT'):
+        if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_UP', 'KEY_PAGEUP', 'KEY_LEFT'):
           press('left')
-        if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_DOWN', 'KEY_RIGHT'):
+        if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_DOWN', 'KEY_PAGEDOWN', 'KEY_RIGHT'):
           press('right')
         if key_event.keystate == key_event.key_down and key_event.keycode in ('KEY_F5', 'KEY_ESC'):
           press('down')
@@ -296,10 +313,10 @@ else:
 
 def update_from_zip(file_path):
   ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-  base_dir = f'{data_dir}/{ts}'
+  base_dir = f'{args.data_dir}/{ts}'
 
-  # if os.path.exists(f'{data_dir}/monolog'): shutil.rmtree(f'{data_dir}/monolog')
-  # if os.path.exists(f'{data_dir}/dialog'): shutil.rmtree(f'{data_dir}/dialog')
+  # if os.path.exists(f'{args.data_dir}/monolog'): shutil.rmtree(f'{args.data_dir}/monolog')
+  # if os.path.exists(f'{args.data_dir}/dialog'): shutil.rmtree(f'{args.data_dir}/dialog')
 
   os.system(f'unzip -d {shlex.quote(base_dir)} {shlex.quote(file_path)}')
   set('monolog_paths', get_paths(f'{base_dir}/monolog'))
@@ -321,7 +338,7 @@ async def post_upload(request: web.Request):
     mime_type = field.headers.get(aiohttp.hdrs.CONTENT_TYPE)
     if mime_type not in ('application/zip', 'application/x-zip-compressed'):
       raise web.HTTPUnprocessableEntity(text=f'Cannot process mime_type="{mime_type}"')
-    file_path = os.path.join(data_dir, filename)
+    file_path = os.path.join(args.data_dir, filename)
 
     with open(file_path, 'wb') as f:
       while True:
