@@ -237,7 +237,6 @@ def on_connect(client, userdata, flags, reason_code):
   set('mqtt', f'connected: reason_code={reason_code}')
 
 client.on_connect = on_connect
-client.loop_start()
 
 
 def flicker():
@@ -287,6 +286,8 @@ else:
       if device.name == device_name:
         print(f'Found device "{device_name}" at "{device_path}"')
         return device
+      else:
+        print(f'Found other device "{device.name}" -- not using...')
       i += 1
 
   device = get_device(args.device_name)
@@ -392,9 +393,10 @@ async def post_set(request: web.Request):
   return web.json_response(dict(status='ok'))
 
 
+client.loop_start()
 player_thread.start()
 flicker_thread.start()
-events_thread.start()
+if events_thread: events_thread.start()
 
 app = web.Application()
 app.add_routes([
