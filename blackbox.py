@@ -21,7 +21,7 @@ import pygame
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--shelly', default='3494546EF893')
+parser.add_argument('--shelly', default='349454777DED')
 parser.add_argument('--device_name', default='HID 0e8f:2517')
 parser.add_argument('--data_dir', default='./data/')
 parser.add_argument('--broker', default='unuru.local')

@@ -1,6 +1,5 @@
 # Shan Deliar's blackbox
 
-
 ## Basic use
 
 - connect to http://unuru.local:8080 (on wlan ssid=unuru) to check
@@ -64,6 +63,17 @@ rabbitmqctl set_permissions 'blackbox' '' '.*' '.*'
 4. `mosquitto_sub -h 192.168.4.1 -p 1883 -u "blackbox" -P "blackbox" -t "test/topic"` and
    `mosquitto_pub -h 192.168.4.1 -p 1883 -u "blackbox" -P "blackbox" -t "test/topic" -m 'Hello, World'`
 
+Shelly Vintage:
+
+1. Power on new lamp - it will create a network with a SSID like ShellyVintage-349454777DED
+2. http://192.168.33.1 set wifi client mode to ssid=unuru
+3. Connect to ssid=unuru and find device with `arp -a`
+4. Connect to shelly UI at the new address, e.g. http://192.168.4.15/
+5. Internet & Security, Advanced Developer Settings, Enable MQTT:
+   user=blackbox, password=blackbox, server=192.168.4.1:1883
+6. Check in http://localhost:15673/#/connections (when using `ssh -L15673:localhost:15672`)
+   that there are two blackbox connections, one from the
+7. Make sure address `blackbox.py --shelly 349454777DED` is specified.
 
 ## Set up as service
 
