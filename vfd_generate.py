@@ -84,6 +84,7 @@ def print_text_statistics(text_array):
     print("\n=== Text Statistics ===")
     print(f"Total texts: {len(text_array)}")
 
+    total_seconds = 0
     for i, text in enumerate(text_array):
         # Count characters (excluding whitespace)
         char_count = sum(1 for c in text if not c.isspace())
@@ -110,6 +111,7 @@ def print_text_statistics(text_array):
             hours = args.default_hours
 
         seconds = hours * 3600
+        total_seconds += seconds
         chars_per_second = len(text) / (seconds * 0.9) if seconds > 0 else 0
         chars_per_minute = chars_per_second * 60
         words_per_minute = chars_per_minute / 5  # Assuming average word length of 5 chars
@@ -127,6 +129,66 @@ def print_text_statistics(text_array):
         if len(text) > 50:
             preview += "..."
         print(f"  Preview: \"{preview}\"")
+
+    # Calculate and display start/end information
+    start_time = args.start
+    if start_time:
+        try:
+            start_datetime = datetime.strptime(start_time, "%Y%m%d-%H%M%S")
+            current_datetime = datetime.now()
+
+            # Calculate end time
+            end_datetime = start_datetime + timedelta(seconds=total_seconds)
+
+            # Determine which text we'll start with and at what position
+            if current_datetime < start_datetime:
+                print(f"\nAnimation will start at: {start_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"Animation will start with text #0 at position 0 (beginning)")
+            else:
+                # Calculate elapsed time and determine current position
+                elapsed_seconds = (current_datetime - start_datetime).total_seconds()
+
+                if elapsed_seconds >= total_seconds:
+                    print(f"\nStart time was in the past. Animation has already completed.")
+                    print(f"Animation would have ended at: {end_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    # Find which text we're in
+                    current_text_index = 0
+                    seconds_remaining = elapsed_seconds
+
+                    while current_text_index < len(text_array):
+                        if current_text_index == 0:
+                            text_seconds = args.first_hours * 3600
+                        elif current_text_index == len(text_array) - 1:
+                            text_seconds = args.last_hours * 3600
+                        else:
+                            text_seconds = args.default_hours * 3600
+
+                        if seconds_remaining < text_seconds:
+                            # We're in this text
+                            fraction = seconds_remaining / text_seconds
+                            char_position = int(len(text_array[current_text_index]) * fraction)
+                            print(f"\nAnimation will start at: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+                            print(f"Animation will start with text #{current_text_index} at approximately {fraction:.1%} through")
+                            print(f"Estimated character position: {char_position} of {len(text_array[current_text_index])}")
+                            break
+
+                        seconds_remaining -= text_seconds
+                        current_text_index += 1
+
+                        if current_text_index >= len(text_array):
+                            # We've gone through all texts, must be a calculation error
+                            print(f"\nStart time was in the past. Animation has already completed.")
+                            break
+
+            print(f"Animation will end at: {end_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        except ValueError:
+            print(f"\nInvalid start time format: {start_time}. Using format YYYYMMDD-HHMMSS")
+    else:
+        print(f"\nNo start time specified. Animation will begin immediately.")
+        end_time = datetime.now() + timedelta(seconds=total_seconds)
+        print(f"Animation will end at: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     print("=====================\n")
 
