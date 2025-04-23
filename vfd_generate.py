@@ -12,7 +12,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description='VFD Generator')
     parser.add_argument('--ip', default='127.0.0.1', help='UDP destination IP address')
     parser.add_argument('--port', type=int, default=31337, help='UDP destination port')
-    parser.add_argument('--font-size', type=int, default=18, help='Font size (before scaling)')
+    parser.add_argument('--font-size', type=int, default=12, help='Font size (before scaling)')
+    parser.add_argument('--font', default='./KodeMono.ttf', help=
+                        'Path to font file or name of system font (some examples: "Courier New", "Courier", '
+                        '"Lucida Console", "Monaco" [12], "DejaVu Sans Mono") ... '
+                        'see `fc-list` or `pygame.font.get_fonts()`')
     return parser.parse_args()
 
 # Get command line arguments
@@ -62,12 +66,7 @@ class VFDGenerator:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         # Set up font
-        font_path = self.get_font_path()
-        if font_path:
-            self.font = pygame.freetype.Font(font_path, FONT_SIZE // SCALE_FACTOR)
-        else:
-            # Fallback to a monospace font
-            self.font = pygame.freetype.SysFont("monospace", FONT_SIZE // SCALE_FACTOR)
+        self.font = self.load_font()
 
         # Set font rendering mode to mono for crisp text on monochrome display
         self.font.antialiased = False
@@ -85,21 +84,30 @@ class VFDGenerator:
         # Set up the grid texture
         self.grid_texture = self.create_grid_texture()
 
-    def get_font_path(self):
-        """Try to find VT323 font or a similar retro font"""
-        possible_paths = [
-            # Common font locations - adjust as needed
-            os.path.join("fonts", "VT323-Regular.ttf"),
-            os.path.join(os.path.expanduser("~"), ".fonts", "VT323-Regular.ttf"),
-            "/usr/share/fonts/truetype/VT323-Regular.ttf"
-            # Add more potential paths if needed
-        ]
+    def load_font(self):
+        """Load the specified font or try to find a suitable default"""
+        # If user specified a font, try to load it
+        if args.font:
+            try:
+                if os.path.exists(args.font):
+                    # Load from file path
+                    return pygame.freetype.Font(args.font, FONT_SIZE // SCALE_FACTOR)
+                else:
+                    # Try as system font name
+                    return pygame.freetype.SysFont(args.font, FONT_SIZE // SCALE_FACTOR)
+            except:
+                print(f"Could not load font: {args.font}")
+                # Fall through to defaults
 
-        for path in possible_paths:
-            if os.path.exists(path):
-                return path
+        # Try other good monospace fonts
+        for font_name in ["Courier New", "Courier", "Lucida Console", "Monaco", "DejaVu Sans Mono"]:
+            try:
+                return pygame.freetype.SysFont(font_name, FONT_SIZE // SCALE_FACTOR)
+            except:
+                pass
 
-        return None  # Font not found, will use system monospace
+        # Last resort - system monospace
+        return pygame.freetype.SysFont("monospace", FONT_SIZE // SCALE_FACTOR)
 
     def create_grid_texture(self):
         """Create a semi-transparent grid texture for the VFD background"""
