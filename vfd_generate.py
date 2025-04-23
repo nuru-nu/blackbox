@@ -266,12 +266,21 @@ class VFDGenerator:
                     if self.text_x >= PADDING // SCALE_FACTOR:
                         self.text_x = PADDING // SCALE_FACTOR
 
-            # Adjust typing speed based on context
-            self.adjust_typing_speed(next_char)
-
             # Move to next character
             self.char_index += 1
             self.last_type_time = current_time
+
+            # Look ahead for newline to apply longer pause before it
+            if self.char_index < len(self.current_text) and self.current_text[self.char_index] == '\n':
+                # Apply longer pause before newline (3x period pause)
+                base_rate = self.chars_per_second[self.current_text_index]
+                base_delay = 1.0 / base_rate if base_rate > 0 else 10.0
+                variation = random.uniform(-0.1, 0.1)
+                adjusted_delay = base_delay * (1 + variation)
+                self.current_delay = adjusted_delay * 9.0  # 3x the period pause (which is 3.0)
+            else:
+                # Normal adjustment for other characters
+                self.adjust_typing_speed(next_char)
 
     def adjust_typing_speed(self, current_char):
         """Adjust typing speed based on context for more realistic effect"""
