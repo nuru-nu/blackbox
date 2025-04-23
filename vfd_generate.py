@@ -284,7 +284,12 @@ class VFDGenerator:
         adjusted_delay = base_delay * (1 + variation)
 
         # Adjust for specific characters
-        if current_char == '.':
+        if current_char == '\n':
+            # Much longer pause before new paragraphs (3x longer than period)
+            # With multiple newlines this makes the cursor blink on an empty line...
+            self.current_delay = adjusted_delay * 9.0
+            self.in_word = False
+        elif current_char == '.':
             # Longer pause after periods
             self.current_delay = adjusted_delay * 3.0
             self.in_word = False
