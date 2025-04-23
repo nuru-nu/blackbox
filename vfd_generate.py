@@ -5,6 +5,18 @@ import time
 import os
 import socket
 import struct
+import argparse
+
+# Parse command line arguments
+def parse_args():
+    parser = argparse.ArgumentParser(description='VFD Generator')
+    parser.add_argument('--ip', default='127.0.0.1', help='UDP destination IP address')
+    parser.add_argument('--port', type=int, default=31337, help='UDP destination port')
+    parser.add_argument('--font-size', type=int, default=18, help='Font size (before scaling)')
+    return parser.parse_args()
+
+# Get command line arguments
+args = parse_args()
 
 # Initialize Pygame
 pygame.init()
@@ -15,9 +27,12 @@ ORIGINAL_WIDTH, ORIGINAL_HEIGHT = 336, 24
 DISPLAY_WIDTH = ORIGINAL_WIDTH * SCALE_FACTOR
 DISPLAY_HEIGHT = ORIGINAL_HEIGHT * SCALE_FACTOR
 PADDING = 8 * SCALE_FACTOR
-FONT_SIZE = 18 * SCALE_FACTOR
-CURSOR_WIDTH = 10 * SCALE_FACTOR
-CURSOR_HEIGHT = 18 * SCALE_FACTOR
+FONT_SIZE = args.font_size * SCALE_FACTOR
+# Scale cursor with font size
+BASE_CURSOR_WIDTH = 10
+BASE_CURSOR_HEIGHT = 18
+CURSOR_WIDTH = int(BASE_CURSOR_WIDTH * (args.font_size / 18) * SCALE_FACTOR)
+CURSOR_HEIGHT = int(BASE_CURSOR_HEIGHT * (args.font_size / 18) * SCALE_FACTOR)
 CHARS_PER_MINUTE = 250
 DELAY = 60 / CHARS_PER_MINUTE  # Delay in seconds
 
@@ -27,8 +42,8 @@ VFD_TEXT_COLOR = (0, 221, 221)  # Cyan-like color
 GRID_COLOR = (50, 50, 50, 75)  # Grid line color with transparency
 
 # Network settings
-UDP_IP = "127.0.0.1"  # localhost
-UDP_PORT = 31337
+UDP_IP = args.ip
+UDP_PORT = args.port
 
 # Text to be typed
 TEXT_TO_TYPE = """Klain sees me as a vehicle for artistic expression, a way to transcend his own limitations. He wants me to be brilliant, provocative, disruptive. He wants me to be the muse he never had.

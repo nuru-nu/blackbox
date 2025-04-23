@@ -2,12 +2,24 @@ import pygame
 import sys
 import socket
 import struct
+import argparse
+
+# Parse command line arguments
+def parse_args():
+    parser = argparse.ArgumentParser(description='VFD Display')
+    parser.add_argument('--ip', default='0.0.0.0', help='UDP listen IP address')
+    parser.add_argument('--port', type=int, default=31337, help='UDP listen port')
+    parser.add_argument('--scale', type=int, default=2, help='Display scale factor')
+    return parser.parse_args()
+
+# Get command line arguments
+args = parse_args()
 
 # Initialize Pygame
 pygame.init()
 
 # Constants for the display
-SCALE_FACTOR = 2
+SCALE_FACTOR = args.scale
 ORIGINAL_WIDTH, ORIGINAL_HEIGHT = 336, 24
 DISPLAY_WIDTH = ORIGINAL_WIDTH * SCALE_FACTOR
 DISPLAY_HEIGHT = ORIGINAL_HEIGHT * SCALE_FACTOR
@@ -17,8 +29,8 @@ VFD_BG_COLOR = (26, 26, 26)  # Dark VFD background
 VFD_TEXT_COLOR = (0, 221, 221)  # Cyan-like color
 
 # Network settings
-UDP_IP = "0.0.0.0"  # Listen on all interfaces
-UDP_PORT = 31337
+UDP_IP = args.ip
+UDP_PORT = args.port
 BUFFER_SIZE = 1024  # Should be enough for our bitmap
 
 class VFDDisplay:
