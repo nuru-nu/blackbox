@@ -70,10 +70,65 @@ def load_text_from_json(file_path):
             if not isinstance(text_array, list):
                 print(f"Error: JSON file should contain an array of strings")
                 return ["""Error loading text. JSON file should contain an array of strings."""]
+
+            # Print statistics for each text
+            print_text_statistics(text_array)
+
             return text_array
     except Exception as e:
         print(f"Error loading text file: {e}")
         return [f"""Error loading text file: {e}"""]
+
+def print_text_statistics(text_array):
+    """Print statistics about each text in the array"""
+    print("\n=== Text Statistics ===")
+    print(f"Total texts: {len(text_array)}")
+
+    for i, text in enumerate(text_array):
+        # Count characters (excluding whitespace)
+        char_count = sum(1 for c in text if not c.isspace())
+
+        # Count words
+        words = [w for w in text.split() if w]
+        word_count = len(words)
+
+        # Count paragraphs (text separated by newlines)
+        paragraph_count = text.count('\n') + 1
+
+        # Calculate reading metrics
+        # Average reading speed is about 200-250 words per minute
+        wpm = 200
+        reading_time_minutes = word_count / wpm
+
+        # Calculate typing metrics based on the VFDGenerator settings
+        chars_per_second = 0
+        if i == 0:
+            hours = args.first_hours
+        elif i == len(text_array) - 1:
+            hours = args.last_hours
+        else:
+            hours = args.default_hours
+
+        seconds = hours * 3600
+        chars_per_second = len(text) / (seconds * 0.9) if seconds > 0 else 0
+        chars_per_minute = chars_per_second * 60
+        words_per_minute = chars_per_minute / 5  # Assuming average word length of 5 chars
+
+        print(f"\nText #{i}:")
+        print(f"  Characters: {len(text)} ({char_count} non-whitespace)")
+        print(f"  Words: {word_count}")
+        print(f"  Paragraphs: {paragraph_count}")
+        print(f"  Typing speed: {chars_per_minute:.1f} chars/min, {words_per_minute:.1f} words/min")
+        print(f"  Reading time: {reading_time_minutes:.1f} minutes")
+        print(f"  Display time: {hours:.1f} hours")
+
+        # Print a preview of the text (first 50 chars)
+        preview = text[:50].replace('\n', '\\n')
+        if len(text) > 50:
+            preview += "..."
+        print(f"  Preview: \"{preview}\"")
+
+    print("=====================\n")
 
 # Load the text array
 TEXT_ARRAY = load_text_from_json(args.text)
