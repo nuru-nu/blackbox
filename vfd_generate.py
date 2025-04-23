@@ -171,6 +171,16 @@ def print_text_statistics(text_array):
                             print(f"\nAnimation will start at: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
                             print(f"Animation will start with text #{current_text_index} at approximately {fraction:.1%} through")
                             print(f"Estimated character position: {char_position} of {len(text_array[current_text_index])}")
+
+                            # Show text that was just displayed and text that will be shown next
+                            if char_position > 0:
+                                context_before = text_array[current_text_index][max(0, char_position-50):char_position]
+                                context_before = context_before.replace('\n', '\\n')
+                                print(f"Text just displayed: \"...{context_before}\"")
+
+                            context_after = text_array[current_text_index][char_position:char_position+50]
+                            context_after = context_after.replace('\n', '\\n')
+                            print(f"Text coming next: \"{context_after}...\"")
                             break
 
                         seconds_remaining -= text_seconds
