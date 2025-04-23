@@ -39,6 +39,11 @@ CURSOR_WIDTH = int(BASE_CURSOR_WIDTH * (args.font_size / 18) * SCALE_FACTOR)
 CURSOR_HEIGHT = int(BASE_CURSOR_HEIGHT * (args.font_size / 18) * SCALE_FACTOR)
 CHARS_PER_MINUTE = 250
 DELAY = 60 / CHARS_PER_MINUTE  # Delay in seconds
+# Add variation to typing speed
+WORD_BURST_FACTOR = 0.7  # Type words faster (lower delay)
+PERIOD_PAUSE = 1.2  # Longer pause after periods
+COMMA_PAUSE = 0.8  # Pause after commas
+RANDOM_VARIATION = 0.2  # Random variation in typing speed
 
 # VFD-like colors
 VFD_BG_COLOR = (26, 26, 26)  # Dark VFD background
@@ -80,6 +85,9 @@ class VFDGenerator:
         self.last_type_time = 0
         self.cursor_visible = True
         self.cursor_last_toggle = 0
+        # Add variables for realistic typing
+        self.current_delay = DELAY
+        self.in_word = False
 
         # Set up the grid texture
         self.grid_texture = self.create_grid_texture()
@@ -134,7 +142,7 @@ class VFDGenerator:
     def type_character(self):
         """Type the next character if enough time has passed"""
         current_time = time.time()
-        if current_time - self.last_type_time >= DELAY and self.char_index < len(TEXT_TO_TYPE):
+        if current_time - self.last_type_time >= self.current_delay and self.char_index < len(TEXT_TO_TYPE):
             next_char = TEXT_TO_TYPE[self.char_index]
 
             # Check for newline character
@@ -143,6 +151,8 @@ class VFDGenerator:
                 self.text = ""
                 self.text_x = PADDING // SCALE_FACTOR
                 self.cursor_x = PADDING // SCALE_FACTOR
+                self.current_delay = DELAY  # Reset delay
+                self.in_word = False
             else:
                 # Add character to text
                 self.text += next_char
@@ -165,9 +175,40 @@ class VFDGenerator:
                     if self.text_x >= PADDING // SCALE_FACTOR:
                         self.text_x = PADDING // SCALE_FACTOR
 
+            # Adjust typing speed based on context
+            self.adjust_typing_speed(next_char)
+
             # Move to next character
             self.char_index += 1
             self.last_type_time = current_time
+
+    def adjust_typing_speed(self, current_char):
+        """Adjust typing speed based on context for more realistic effect"""
+        import random
+
+        # Add random variation to base delay
+        base_delay = DELAY * (1 + random.uniform(-RANDOM_VARIATION, RANDOM_VARIATION))
+
+        # Check for special characters that affect timing
+        if current_char == '.':
+            # Longer pause after periods
+            self.current_delay = base_delay * PERIOD_PAUSE
+            self.in_word = False
+        elif current_char == ',':
+            # Medium pause after commas
+            self.current_delay = base_delay * COMMA_PAUSE
+            self.in_word = False
+        elif current_char == ' ':
+            # Slight pause between words
+            self.current_delay = base_delay
+            self.in_word = False
+        else:
+            # Characters within words are typed faster
+            if self.in_word:
+                self.current_delay = base_delay * WORD_BURST_FACTOR
+            else:
+                self.current_delay = base_delay
+                self.in_word = True
 
     def render_frame(self):
         """Render the current frame to the surface"""
