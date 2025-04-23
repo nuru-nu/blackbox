@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument('--first-hours', type=float, default=24, help='Hours to spend on first text')
     parser.add_argument('--last-hours', type=float, default=24, help='Hours to spend on last text')
     parser.add_argument('--default-hours', type=float, default=24, help='Hours to spend on each text between first and last')
+    parser.add_argument('--start', default=None, help='Start time for animation in YYYYMMDD-HHMMSS format')
     return parser.parse_args()
 
 # Get command line arguments
@@ -114,6 +115,15 @@ class VFDGenerator:
         # Set up the grid texture
         self.grid_texture = self.create_grid_texture()
 
+        # Parse start time if provided
+        self.start_time = None
+        if args.start:
+            try:
+                self.start_time = datetime.strptime(args.start, "%Y%m%d-%H%M%S")
+            except ValueError:
+                print(f"Invalid start time format: {args.start}. Using format YYYYMMDD-HHMMSS")
+                self.start_time = None
+
         # Initialize random seed with current time for consistent but varied typing
         random.seed(int(time.time()))
 
@@ -203,6 +213,19 @@ class VFDGenerator:
     def type_character(self):
         """Type the next character if enough time has passed"""
         current_time = time.time()
+
+        # Check if we should start typing yet
+        if self.start_time:
+            current_datetime = datetime.now()
+            if current_datetime < self.start_time:
+                # Not time to start yet, just return without typing
+                return
+            # Handle start time in the past - fast forward to current position
+            elif self.char_index == 0 and self.current_text_index == 0:
+                # Calculate how much time has passed since the start time
+                elapsed_seconds = (current_datetime - self.start_time).total_seconds()
+                if elapsed_seconds > 0:
+                    self.fast_forward(elapsed_seconds)
 
         # Check if we need to move to the next text
         if self.char_index >= len(self.current_text):
@@ -404,6 +427,66 @@ class VFDGenerator:
 
         pygame.quit()
         sys.exit()
+
+    def fast_forward(self, elapsed_seconds):
+        """Fast forward the animation to the position it would be at after elapsed_seconds"""
+        remaining_seconds = elapsed_seconds
+        text_index = 0
+        char_index = 0
+
+        # Process each text in the array
+        while text_index < len(TEXT_ARRAY) and remaining_seconds > 0:
+            current_text = TEXT_ARRAY[text_index]
+            # Get typing rate for this text
+            char_rate = self.chars_per_second[text_index] if text_index < len(self.chars_per_second) else 0.1
+
+            if char_rate <= 0:
+                char_rate = 0.1  # Prevent division by zero
+
+            # Calculate how many characters we can type in the remaining time
+            # Account for average delay factor (approximation of the various pauses)
+            avg_delay_factor = 1.5  # Average of all the delay factors
+            chars_possible = int(remaining_seconds * char_rate / avg_delay_factor)
+
+            if chars_possible >= len(current_text) - char_index:
+                # We can complete this text, move to the next one
+                chars_typed = len(current_text) - char_index
+                time_used = (chars_typed * avg_delay_factor) / char_rate
+                remaining_seconds -= time_used
+                text_index += 1
+                char_index = 0
+            else:
+                # We can only type part of this text
+                char_index += chars_possible
+                break
+
+        # Set the current state to where we fast-forwarded to
+        self.current_text_index = text_index
+        if text_index < len(TEXT_ARRAY):
+            self.current_text = TEXT_ARRAY[text_index]
+            self.char_index = char_index
+
+            # Update the displayed text
+            self.text = self.current_text[:char_index]
+
+            # Calculate text width and cursor position
+            text_rect = self.font.get_rect(self.text)
+            text_width = text_rect.width
+            self.cursor_x = PADDING // SCALE_FACTOR + text_width
+
+            # Handle scrolling if needed
+            if self.cursor_x + (CURSOR_WIDTH // SCALE_FACTOR) > ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR):
+                scroll_offset_cursor = ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR) - (CURSOR_WIDTH // SCALE_FACTOR)
+                scroll_offset_text = scroll_offset_cursor - text_width
+                self.text_x = scroll_offset_text
+                self.cursor_x = scroll_offset_cursor
+            else:
+                self.text_x = PADDING // SCALE_FACTOR
+
+            # Update typing rate for the current text
+            if text_index < len(self.chars_per_second):
+                base_rate = self.chars_per_second[text_index]
+                self.current_delay = 1.0 / base_rate if base_rate > 0 else 10.0
 
 if __name__ == "__main__":
     generator = VFDGenerator()
