@@ -139,9 +139,9 @@ def get_paths(directory):
 
 
 def init_paths():
-  paths = sorted(glob.glob(f'{args.data_dir}/*/monolog/*.mp3'))
+  paths = sorted(glob.glob(f'{args.data_dir}/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]'))
   if paths:
-    state['base_dir'] = '/'.join(paths[-1].split('/')[:-2])
+    state['base_dir'] = paths[-1]
     state['monolog_paths'] = get_paths(f'{state["base_dir"]}/monolog')
     state['dialog_paths'] = get_paths(f'{state["base_dir"]}/dialog')
 
@@ -152,6 +152,7 @@ def set(key, value):
   with state_lock:
     state[key] = value
   syncify(add_event, ('set', (key, value)))
+  # log('debug', f'set {key}={value}')
   # print('set', key, value)
 
 
