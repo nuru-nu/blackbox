@@ -54,6 +54,10 @@ class VFDGenerator:
             # Fallback to a monospace font
             self.font = pygame.freetype.SysFont("monospace", FONT_SIZE // SCALE_FACTOR)
 
+        # Set font rendering mode to mono for crisp text on monochrome display
+        self.font.antialiased = False
+        self.font.origin = True
+
         # Initialize text properties
         self.text = ""
         self.char_index = 0
@@ -152,7 +156,8 @@ class VFDGenerator:
 
         # Draw text
         if self.text:
-            text_surf, text_rect = self.font.render(self.text, VFD_TEXT_COLOR)
+            # Use STYLE_DEFAULT for monochrome rendering
+            text_surf, text_rect = self.font.render(self.text, VFD_TEXT_COLOR, style=pygame.freetype.STYLE_DEFAULT)
             text_rect.topleft = (self.text_x, (ORIGINAL_HEIGHT - text_rect.height) // 2)
             self.surface.blit(text_surf, text_rect)
 
