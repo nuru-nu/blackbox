@@ -24,7 +24,8 @@ def parse_args():
     parser.add_argument('--first-hours', type=float, default=24, help='Hours to spend on first text')
     parser.add_argument('--last-hours', type=float, default=24, help='Hours to spend on last text')
     parser.add_argument('--default-hours', type=float, default=24, help='Hours to spend on each text between first and last')
-    parser.add_argument('--start', default=None, help='Start time for animation in YYYYMMDD-HHMMSS format')
+    parser.add_argument('--start', default=(datetime.now() + timedelta(seconds=5)).strftime("%Y%m%d-%H%M%S"),
+                        help='Start time for animation in YYYYMMDD-HHMMSS format (defaults to current time + 10 seconds)')
     return parser.parse_args()
 
 # Get command line arguments
@@ -131,74 +132,70 @@ def print_text_statistics(text_array):
         print(f"  Preview: \"{preview}\"")
 
     # Calculate and display start/end information
-    start_time = args.start
-    if start_time:
-        try:
-            start_datetime = datetime.strptime(start_time, "%Y%m%d-%H%M%S")
-            current_datetime = datetime.now()
+    try:
+        start_datetime = datetime.strptime(args.start, "%Y%m%d-%H%M%S")
+        current_datetime = datetime.now()
 
-            # Calculate end time
-            end_datetime = start_datetime + timedelta(seconds=total_seconds)
+        # Calculate end time
+        end_datetime = start_datetime + timedelta(seconds=total_seconds)
 
-            # Determine which text we'll start with and at what position
-            if current_datetime < start_datetime:
-                print(f"\nAnimation will start at: {start_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
-                print(f"Animation will start with text #0 at position 0 (beginning)")
+        # Determine which text we'll start with and at what position
+        if current_datetime < start_datetime:
+            print(f"\nAnimation will start at: {start_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Animation will start with text #0 at position 0 (beginning)")
+        else:
+            # Calculate elapsed time and determine current position
+            elapsed_seconds = (current_datetime - start_datetime).total_seconds()
+
+            if elapsed_seconds >= total_seconds:
+                print(f"\nStart time was in the past. Animation has already completed.")
             else:
-                # Calculate elapsed time and determine current position
-                elapsed_seconds = (current_datetime - start_datetime).total_seconds()
+                # Find which text we're in
+                current_text_index = 0
+                seconds_remaining = elapsed_seconds
 
-                if elapsed_seconds >= total_seconds:
-                    print(f"\nStart time was in the past. Animation has already completed.")
-                    print(f"Animation would have ended at: {end_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
-                else:
-                    # Find which text we're in
-                    current_text_index = 0
-                    seconds_remaining = elapsed_seconds
+                while current_text_index < len(text_array):
+                    if current_text_index == 0:
+                        text_seconds = args.first_hours * 3600
+                    elif current_text_index == len(text_array) - 1:
+                        text_seconds = args.last_hours * 3600
+                    else:
+                        text_seconds = args.default_hours * 3600
 
-                    while current_text_index < len(text_array):
-                        if current_text_index == 0:
-                            text_seconds = args.first_hours * 3600
-                        elif current_text_index == len(text_array) - 1:
-                            text_seconds = args.last_hours * 3600
-                        else:
-                            text_seconds = args.default_hours * 3600
+                    if seconds_remaining < text_seconds:
+                        # We're in this text
+                        fraction = seconds_remaining / text_seconds
+                        char_position = int(len(text_array[current_text_index]) * fraction)
+                        print(f"\nAnimation will start at: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+                        print(f"Animation will start with text #{current_text_index} at approximately {fraction:.1%} through")
+                        print(f"Estimated character position: {char_position} of {len(text_array[current_text_index])}")
 
-                        if seconds_remaining < text_seconds:
-                            # We're in this text
-                            fraction = seconds_remaining / text_seconds
-                            char_position = int(len(text_array[current_text_index]) * fraction)
-                            print(f"\nAnimation will start at: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
-                            print(f"Animation will start with text #{current_text_index} at approximately {fraction:.1%} through")
-                            print(f"Estimated character position: {char_position} of {len(text_array[current_text_index])}")
+                        # Show text that was just displayed and text that will be shown next
+                        if char_position > 0:
+                            context_before = text_array[current_text_index][max(0, char_position-50):char_position]
+                            context_before = context_before.replace('\n', '\\n')
+                            print(f"Text just displayed: \"...{context_before}\"")
 
-                            # Show text that was just displayed and text that will be shown next
-                            if char_position > 0:
-                                context_before = text_array[current_text_index][max(0, char_position-50):char_position]
-                                context_before = context_before.replace('\n', '\\n')
-                                print(f"Text just displayed: \"...{context_before}\"")
+                        context_after = text_array[current_text_index][char_position:char_position+50]
+                        context_after = context_after.replace('\n', '\\n')
+                        print(f"Text coming next: \"{context_after}...\"")
+                        break
 
-                            context_after = text_array[current_text_index][char_position:char_position+50]
-                            context_after = context_after.replace('\n', '\\n')
-                            print(f"Text coming next: \"{context_after}...\"")
-                            break
+                    seconds_remaining -= text_seconds
+                    current_text_index += 1
 
-                        seconds_remaining -= text_seconds
-                        current_text_index += 1
+                    if current_text_index >= len(text_array):
+                        # We've gone through all texts, must be a calculation error
+                        print(f"\nStart time was in the past. Animation has already completed.")
+                        break
 
-                        if current_text_index >= len(text_array):
-                            # We've gone through all texts, must be a calculation error
-                            print(f"\nStart time was in the past. Animation has already completed.")
-                            break
+        print(f"Animation end: {end_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
 
-            print(f"Animation will end at: {end_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        except ValueError:
-            print(f"\nInvalid start time format: {start_time}. Using format YYYYMMDD-HHMMSS")
-    else:
-        print(f"\nNo start time specified. Animation will begin immediately.")
+    except ValueError:
+        print(f"\nInvalid start time format: {args.start}. Using format YYYYMMDD-HHMMSS")
+        # Calculate end time based on current time
         end_time = datetime.now() + timedelta(seconds=total_seconds)
-        print(f"Animation will end at: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Animation will start now and end at: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     print("=====================\n")
 
@@ -242,14 +239,13 @@ class VFDGenerator:
         # Set up the grid texture
         self.grid_texture = self.create_grid_texture()
 
-        # Parse start time if provided
+        # Parse start time
         self.start_time = None
-        if args.start:
-            try:
-                self.start_time = datetime.strptime(args.start, "%Y%m%d-%H%M%S")
-            except ValueError:
-                print(f"Invalid start time format: {args.start}. Using format YYYYMMDD-HHMMSS")
-                self.start_time = None
+        try:
+            self.start_time = datetime.strptime(args.start, "%Y%m%d-%H%M%S")
+        except ValueError:
+            print(f"Invalid start time format: {args.start}. Using format YYYYMMDD-HHMMSS")
+            self.start_time = datetime.now()  # Fallback to current time if format is invalid
 
         # Initialize random seed with current time for consistent but varied typing
         random.seed(int(time.time()))
@@ -341,18 +337,16 @@ class VFDGenerator:
         """Type the next character if enough time has passed"""
         current_time = time.time()
 
-        # Check if we should start typing yet
-        if self.start_time:
-            current_datetime = datetime.now()
-            if current_datetime < self.start_time:
-                # Not time to start yet, just return without typing
-                return
-            # Handle start time in the past - fast forward to current position
-            elif self.char_index == 0 and self.current_text_index == 0:
-                # Calculate how much time has passed since the start time
-                elapsed_seconds = (current_datetime - self.start_time).total_seconds()
-                if elapsed_seconds > 0:
-                    self.fast_forward(elapsed_seconds)
+        # Check if we need to fast forward based on start time
+        current_datetime = datetime.now()
+        if current_datetime < self.start_time:
+            return
+
+        if self.char_index == 0 and self.current_text_index == 0:
+            # Calculate how much time has passed since the start time
+            elapsed_seconds = (current_datetime - self.start_time).total_seconds()
+            if elapsed_seconds > 0:
+                self.fast_forward(elapsed_seconds)
 
         # Check if we need to move to the next text
         if self.char_index >= len(self.current_text):
@@ -370,19 +364,15 @@ class VFDGenerator:
                     base_rate = self.chars_per_second[self.current_text_index]
                     self.current_delay = 1.0 / base_rate if base_rate > 0 else 10.0
             else:
-                # All texts have been displayed, restart from the beginning
-                self.current_text_index = 0
-                self.current_text = TEXT_ARRAY[0] if TEXT_ARRAY else ""
-                self.char_index = 0
-                self.text = ""
-                self.text_x = PADDING // SCALE_FACTOR
-                self.cursor_x = PADDING // SCALE_FACTOR
-                self.in_word = False
+                # All texts have been displayed, just keep the cursor blinking
+                # Don't reset or restart - we're done typing
+                self.char_index = len(self.current_text)  # Ensure we stay at the end
 
-                # Reset to first text typing rate
-                if self.chars_per_second:
-                    base_rate = self.chars_per_second[0]
-                    self.current_delay = 1.0 / base_rate if base_rate > 0 else 10.0
+                # Keep the cursor at its final position
+                # No need to reset text or positions
+
+                # We'll still toggle the cursor in the toggle_cursor method
+                # but won't type any more characters
 
         if current_time - self.last_type_time >= self.current_delay and self.char_index < len(self.current_text):
             next_char = self.current_text[self.char_index]
@@ -549,8 +539,7 @@ class VFDGenerator:
             # Send the frame
             self.send_frame()
 
-            # Cap at 60 fps
-            clock.tick(60)
+            clock.tick(20)  # fps
 
         pygame.quit()
         sys.exit()
@@ -593,22 +582,11 @@ class VFDGenerator:
             self.current_text = TEXT_ARRAY[text_index]
             self.char_index = char_index
 
-            # Update the displayed text
-            self.text = self.current_text[:char_index]
-
-            # Calculate text width and cursor position
-            text_rect = self.font.get_rect(self.text)
-            text_width = text_rect.width
-            self.cursor_x = PADDING // SCALE_FACTOR + text_width
-
-            # Handle scrolling if needed
-            if self.cursor_x + (CURSOR_WIDTH // SCALE_FACTOR) > ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR):
-                scroll_offset_cursor = ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR) - (CURSOR_WIDTH // SCALE_FACTOR)
-                scroll_offset_text = scroll_offset_cursor - text_width
-                self.text_x = scroll_offset_text
-                self.cursor_x = scroll_offset_cursor
-            else:
-                self.text_x = PADDING // SCALE_FACTOR
+            # Simply set the cursor at the starting position and begin typing from char_index
+            # No need to pre-render text or calculate scroll positions
+            self.text = ""
+            self.text_x = PADDING // SCALE_FACTOR
+            self.cursor_x = PADDING // SCALE_FACTOR
 
             # Update typing rate for the current text
             if text_index < len(self.chars_per_second):
