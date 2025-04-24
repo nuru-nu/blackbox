@@ -724,6 +724,7 @@ class VFDGenerator:
         running = True
         clock = pygame.time.Clock()
         frame_count = 0
+        last_log_time = time.monotonic()  # Track when we last logged
 
         while running:
             # Handle events (just for quitting)
@@ -746,14 +747,13 @@ class VFDGenerator:
             # Send the frame (only send if needed, maybe add check for changes?)
             self.send_frame()
 
-            frame_count += 1
-            # Optional: Print status periodically for debugging
-            # if frame_count % 60 == 0: # Print once per second approx
-            #     current_datetime = datetime.now()
-            #     elapsed_seconds = (current_datetime - self.start_time).total_seconds()
-            #     tgt_txt, tgt_char = self.calculate_target_state(elapsed_seconds)
-            #     print(f"[{current_datetime.strftime('%H:%M:%S')}] State: Txt {self.current_text_index}, Char {self.char_index} / Target: Txt {tgt_txt}, Char {tgt_char}, Finished: {self.animation_finished}      ", end='\r')
+            # Log status every 10 seconds
+            current_time = time.monotonic()
+            if current_time - last_log_time >= 10:  # Log every 10 seconds
+                self.log_status()
+                last_log_time = current_time
 
+            frame_count += 1
             clock.tick(30)  # Aim for ~30 fps, adjust as needed
 
         print("\nExiting.")
@@ -761,6 +761,46 @@ class VFDGenerator:
         if self.sock:
             self.sock.close()
         sys.exit()
+
+    def log_status(self):
+        """Log current status information"""
+        current_datetime = datetime.now()
+
+        # Calculate time difference from start
+        elapsed = current_datetime - self.start_time
+        days, remainder = divmod(elapsed.total_seconds(), 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        # Format time difference
+        time_diff = f"{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s"
+
+        # Get current text information
+        if not TEXT_ARRAY or self.current_text_index >= len(TEXT_ARRAY):
+            text_info = "No text available"
+            context = "No context available"
+        else:
+            # Calculate relative position within current text
+            current_text = TEXT_ARRAY[self.current_text_index]
+            total_chars = len(current_text)
+            relative_pos = f"{self.char_index}/{total_chars}" if total_chars > 0 else "0/0"
+            percentage = f"{(self.char_index / total_chars * 100):.1f}%" if total_chars > 0 else "0.0%"
+
+            text_info = f"Text #{self.current_text_index} (of {len(TEXT_ARRAY)-1}), Char #{self.char_index} ({relative_pos}, {percentage})"
+
+            # Get context around cursor
+            context_before = current_text[max(0, self.char_index-50):self.char_index]
+            context_after = current_text[self.char_index:min(len(current_text), self.char_index+50)]
+            context = f"\"...{context_before.replace(chr(10), '/')}<-CURSOR->{context_after.replace(chr(10), '/')}...\""
+
+        # Print the log
+        print(f"\n[{current_datetime.strftime('%Y-%m-%d %H:%M:%S')}] Elapsed: {time_diff} from start")
+        print(f"Position: {text_info}")
+        print(f"Context: {context}")
+        print(f"Animation {'finished' if self.animation_finished else 'in progress'}")
+
+        # Print a separator for readability
+        print("-" * 80)
 
 
 if __name__ == "__main__":
