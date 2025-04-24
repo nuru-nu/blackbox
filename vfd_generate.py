@@ -21,7 +21,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='VFD Generator')
     parser.add_argument('--ip', default='127.0.0.1', help='UDP destination IP address')
     parser.add_argument('--port', type=int, default=31337, help='UDP destination port')
-    parser.add_argument('--font-size', type=int, default=12, help='Font size (before scaling)')
+    parser.add_argument('--font-size', type=int, default=18, help='Font size (before scaling)')
     parser.add_argument('--font', default='./KodeMono.ttf', help=
                         'Path to font file or name of system font (some examples: "Courier New", "Courier", '
                         '"Lucida Console", "Monaco" [12], "DejaVu Sans Mono") ... '
