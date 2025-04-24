@@ -33,6 +33,7 @@ def parse_args():
     # parser.add_argument('--start', default=(datetime.now() + timedelta(seconds=5)).strftime("%Y%m%d-%H%M%S"),
     parser.add_argument('--start', default='20250424-190000',
                         help='Start time for animation in YYYYMMDD-HHMMSS format (defaults to current time + 10 seconds)')
+    parser.add_argument('--rotate-180', action='store_true', help='Rotate the display output by 180 degrees')
     return parser.parse_args()
 
 # Get command line arguments
@@ -250,6 +251,12 @@ class VFDGenerator:
 
         # Set up the grid texture
         self.grid_texture = self.create_grid_texture()
+
+        # Log rotation setting
+        if args.rotate_180:
+            print("Display rotation: 180 degrees (upside down)")
+        else:
+            print("Display rotation: 0 degrees (normal)")
 
         # Initialize state based on current time - NOW USES DIRECT CALCULATION
         self.initialize_state_directly()
@@ -680,7 +687,11 @@ class VFDGenerator:
         for y in range(ORIGINAL_HEIGHT):
             for x in range(ORIGINAL_WIDTH):
                 try:
-                    pixel = self.surface.get_at((x, y))
+                    # If rotation is enabled, flip the coordinates
+                    if args.rotate_180:
+                        pixel = self.surface.get_at((ORIGINAL_WIDTH - 1 - x, ORIGINAL_HEIGHT - 1 - y))
+                    else:
+                        pixel = self.surface.get_at((x, y))
                 except IndexError:
                      print(f"Error: get_at({x}, {y}) out of bounds for surface ({ORIGINAL_WIDTH}x{ORIGINAL_HEIGHT})")
                      continue # Skip faulty pixel
