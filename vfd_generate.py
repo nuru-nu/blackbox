@@ -560,18 +560,19 @@ class VFDGenerator:
 
         # Don't start animating before the designated start time
         if current_datetime < self.start_time:
-             # Display "Waiting..." message centered
-             wait_text = "Waiting..."
-             try:
-                 text_rect = self.font.get_rect(wait_text)
-                 wait_width = text_rect.width
-             except pygame.error:
-                 wait_width = 8 * len(wait_text) # Estimate if font fails
+            #  # Display "Waiting..." message centered
+            #  wait_text = "Waiting..."
+            #  try:
+            #      text_rect = self.font.get_rect(wait_text)
+            #      wait_width = text_rect.width
+            #  except pygame.error:
+            #      wait_width = 8 * len(wait_text) # Estimate if font fails
 
-             self.display_text = wait_text
-             self.text_x = (ORIGINAL_WIDTH - wait_width) // 2
-             self.cursor_x = self.text_x + wait_width # Position cursor after text
-             self.cursor_visible = False # Hide cursor while waiting
+            #  self.display_text = wait_text
+            #  self.text_x = (ORIGINAL_WIDTH - wait_width) // 2
+            #  self.cursor_x = self.text_x + wait_width # Position cursor after text
+             self.display_text = ''
+             self.cursor_x = 0
              self.animation_finished = False # Ensure not marked finished while waiting
              return # Don't process further
 
