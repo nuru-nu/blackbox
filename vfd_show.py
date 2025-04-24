@@ -1,3 +1,5 @@
+"""Simulates the VFD display."""
+
 import pygame
 import sys
 import socket

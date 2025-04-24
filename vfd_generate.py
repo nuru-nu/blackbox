@@ -1,3 +1,11 @@
+"""Sends animated typing text to VFD.
+
+Hardware description + ESP32 firmware:
+https://github.com/BorisBegemann/Futaba-VFD
+
+NOTE: You need the updated firmware with the UDP handler!
+"""
+
 import pygame
 import pygame.freetype
 import sys
