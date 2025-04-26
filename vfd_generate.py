@@ -228,16 +228,19 @@ class VFDGenerator:
 
         # Set up font
         self.font = self.load_font()
+        if not self.font: # Added check here after load_font call
+            raise RuntimeError("Failed to load any suitable font.")
         self.font.antialiased = False # Better for monochrome? Test this.
         self.font.origin = True
 
-        # Animation state variables
+        # Animation state variables - These will be set by _set_visual_state_from_target
         self.current_text_index = 0
-        self.char_index = 0         # Index of the *next* character to be potentially revealed
-        self.current_text = ""      # The actual text currently being processed
-        self.display_text = ""      # The text currently visible on the display line
-        self.text_x = PADDING // SCALE_FACTOR # X position for drawing display_text
-        self.cursor_x = PADDING // SCALE_FACTOR # X position for drawing cursor
+        self.char_index = 0
+        self.current_text = ""
+        self.display_text = ""
+        self.text_x = PADDING // SCALE_FACTOR
+        self.cursor_x = PADDING // SCALE_FACTOR
+        self.animation_finished = False
 
         # Cursor blinking
         self.cursor_visible = True
@@ -247,7 +250,7 @@ class VFDGenerator:
         self.start_time = start_datetime
         self.text_durations = TEXT_DURATIONS
         self.total_duration_seconds = TOTAL_DURATION_SECONDS
-        self.animation_finished = False
+
 
         # Set up the grid texture
         self.grid_texture = self.create_grid_texture()
@@ -258,8 +261,16 @@ class VFDGenerator:
         else:
             print("Display rotation: 0 degrees (normal)")
 
-        # Initialize state based on current time - NOW USES DIRECT CALCULATION
-        self.initialize_state_directly()
+        # === INITIALIZATION ===
+        # Calculate the initial target state based on current time
+        print("Calculating initial display state...")
+        initial_elapsed_seconds = (datetime.now() - self.start_time).total_seconds()
+        initial_target_text_index, initial_target_char_index = self.calculate_target_state(initial_elapsed_seconds)
+
+        # Set the initial visual state directly using the new method
+        print(f"Setting initial state to: Text #{initial_target_text_index}, Char #{initial_target_char_index}")
+        self._set_visual_state_from_target(initial_target_text_index, initial_target_char_index)
+        print("Initialization complete.")
 
 
     def load_font(self):
@@ -306,11 +317,8 @@ class VFDGenerator:
 
         # Handle edge case where elapsed time is negative (before start)
         if elapsed_seconds < 0:
-             # Special case: if start time is slightly in the future due to rounding/init delay
-             # treat it as exactly zero to avoid issues. Show state at time 0.
+             # Treat time before start as being exactly at the beginning (0 seconds elapsed)
              elapsed_seconds = 0
-             # return 0, 0 # Before start time
-
 
         cumulative_seconds = 0
         for i in range(len(TEXT_ARRAY)):
@@ -326,6 +334,7 @@ class VFDGenerator:
             # Determine if time falls within this segment or beyond
             # Need <= for time_at_text_end check to correctly include the end point
             if elapsed_seconds <= time_at_text_end or is_last_text:
+                target_char_index = 0 # Default if calculation fails
                 if text_duration <= 0 and text_length > 0:
                     # If duration is zero or negative, show the whole text immediately
                     target_char_index = text_length
@@ -341,7 +350,8 @@ class VFDGenerator:
                     target_char_index = max(0, min(text_length, target_char_index))
 
                 # If time has exceeded total duration, clamp to the very end of the last text
-                if elapsed_seconds >= self.total_duration_seconds and self.total_duration_seconds > 0:
+                # Check total_duration_seconds first to avoid division by zero later if it's 0
+                if self.total_duration_seconds > 0 and elapsed_seconds >= self.total_duration_seconds:
                      last_text_index = len(TEXT_ARRAY) - 1
                      last_text_length = len(TEXT_ARRAY[last_text_index]) if last_text_index >= 0 else 0
                      return last_text_index, last_text_length
@@ -357,143 +367,62 @@ class VFDGenerator:
         return last_text_index, last_text_length
 
 
-    def _simulate_typing_step(self):
-        """Simulates one step of typing: reveals one character or handles newline/end of text."""
-        if self.animation_finished:
-             return False # Nothing more to simulate
 
-        # Check if we need to move to the next text *before* processing character
-        if self.char_index >= len(self.current_text):
-            # Move to the next text
-            self.current_text_index += 1
-            if self.current_text_index < len(TEXT_ARRAY):
-                self.current_text = TEXT_ARRAY[self.current_text_index]
-                self.char_index = 0
-                # Reset display for the new text
-                self.display_text = ""
-                self.text_x = PADDING // SCALE_FACTOR
-                self.cursor_x = PADDING // SCALE_FACTOR
-                # Check if the new text is empty, if so, advance again immediately in next step
-                if len(self.current_text) == 0:
-                     # Don't process character this step, let next step handle transition again
-                     return True # State potentially changed (index advanced)
-            else:
-                # Reached the end of all texts
-                self.animation_finished = True
-                # Keep cursor at the end of the last line
-                # Ensure indices reflect the finished state
-                self.current_text_index = len(TEXT_ARRAY) # Signal one past the last index
-                self.char_index = 0
-                return False # No more state changes possible
-
-        # If we are finished after the index update, return false
-        if self.animation_finished:
-            return False
-
-        # Ensure current_text_index is valid before accessing TEXT_ARRAY
-        if self.current_text_index >= len(TEXT_ARRAY):
-             print(f"Error: Tried to access text index {self.current_text_index} which is out of bounds.")
-             self.animation_finished = True
-             return False
-
-        # Process the character at the current char_index
-        # Ensure char_index is valid for current_text (can happen with empty texts)
-        if self.char_index >= len(self.current_text):
-             # This case handles empty texts correctly by advancing index in the next call
-             # No character processing happens, but state did change (text index potentially)
-             return True
-
-
-        next_char = self.current_text[self.char_index]
-
-        if next_char == '\n':
-            # Newline: Clear display line, reset positions
-            self.display_text = ""
-            self.text_x = PADDING // SCALE_FACTOR
-            self.cursor_x = PADDING // SCALE_FACTOR
-        else:
-            # Regular character: Add to display text and update positions/scrolling
-            self.display_text += next_char
-
-            # Calculate new text width and cursor position
-            try:
-                # Use get_rect for potentially more accurate width than render
-                text_rect = self.font.get_rect(self.display_text)
-                new_text_width = text_rect.width
-            except pygame.error as e:
-                 print(f"Warning: Pygame error getting rect for '{self.display_text}': {e}. Using width 0.")
-                 new_text_width = 0
-
-            new_cursor_x = PADDING // SCALE_FACTOR + new_text_width
-
-            # --- Scrolling Logic ---
-            available_width = ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR) # Width available for text + cursor
-            cursor_space = CURSOR_WIDTH // SCALE_FACTOR + (PADDING // SCALE_FACTOR) # Cursor width + right padding
-
-            if new_cursor_x + cursor_space > ORIGINAL_WIDTH: # If cursor hits the right edge
-                # Start scrolling: Cursor stays fixed, text moves left
-                self.cursor_x = ORIGINAL_WIDTH - cursor_space
-                self.text_x = self.cursor_x - new_text_width
-            else:
-                # Not scrolling (or finished scrolling back)
-                self.cursor_x = new_cursor_x
-                # Keep text anchored to the left padding unless scrolled
-                # If text_x was negative (scrolled), keep it, otherwise reset to padding
-                if self.text_x >= PADDING // SCALE_FACTOR:
-                     self.text_x = PADDING // SCALE_FACTOR
-                # Handle case where text fits entirely after scrolling ends
-                elif self.text_x < PADDING // SCALE_FACTOR and new_cursor_x + cursor_space <= ORIGINAL_WIDTH:
-                     self.text_x = PADDING // SCALE_FACTOR
-                     self.cursor_x = PADDING // SCALE_FACTOR + new_text_width
-
-
-        # Move to the next character index *after* processing the current one
-        self.char_index += 1
-        return True # Indicate state changed
-
-
-    def initialize_state_directly(self):
-        """Sets the initial animation state based on the current time using direct calculation."""
-        print("Initializing display state directly...")
-        current_datetime = datetime.now()
-        elapsed_seconds = (current_datetime - self.start_time).total_seconds()
-
-        # Calculate the target state based on current time
-        target_text_index, target_char_index = self.calculate_target_state(elapsed_seconds)
-
-        print(f"Target state: Text #{target_text_index}, Char #{target_char_index}")
-
-        # Clamp target index if needed (e.g., if TEXT_ARRAY is empty)
+    def _set_visual_state_from_target(self, target_text_index, target_char_index):
+        """
+        Sets the visual animation state (display text, positions) directly
+        based on the calculated target text and character index.
+        This replaces the step-by-step simulation for updating the display.
+        """
+        # --- Update Core State Variables ---
+        # Clamp target index to valid range [0, len(TEXT_ARRAY)-1] or handle empty array
         if not TEXT_ARRAY:
             target_text_index = 0
             target_char_index = 0
+            self.current_text_index = 0
+            self.char_index = 0
+            self.current_text = ""
+            self.animation_finished = True # No text means finished
         else:
+            # Ensure target_text_index is within bounds
             target_text_index = max(0, min(len(TEXT_ARRAY) - 1, target_text_index))
-            target_char_index = max(0, min(len(TEXT_ARRAY[target_text_index]), target_char_index))
+
+            # Update internal state
+            self.current_text_index = target_text_index
+            self.current_text = TEXT_ARRAY[self.current_text_index]
+
+            # Ensure target_char_index is within bounds for the current text
+            target_char_index = max(0, min(len(self.current_text), target_char_index))
+            self.char_index = target_char_index
+
+            # Determine if animation is finished based on whether we are at the end of the last text
+            # Needs elapsed time check as well, in case total duration is 0
+            current_datetime = datetime.now()
+            elapsed_seconds = (current_datetime - self.start_time).total_seconds()
+            is_at_end_of_last_text = (self.current_text_index == len(TEXT_ARRAY) - 1 and
+                                     self.char_index == len(self.current_text))
+            has_exceeded_duration = (self.total_duration_seconds > 0 and
+                                     elapsed_seconds >= self.total_duration_seconds)
+
+            self.animation_finished = is_at_end_of_last_text or has_exceeded_duration
 
 
-        # Set the main state variables
-        self.current_text_index = target_text_index
-        self.char_index = target_char_index
-        self.current_text = TEXT_ARRAY[self.current_text_index] if TEXT_ARRAY else ""
-        self.animation_finished = (elapsed_seconds >= self.total_duration_seconds and self.total_duration_seconds > 0)
-
-        # --- Direct Calculation of Visual State ---
-        if not TEXT_ARRAY:
+        # --- Direct Calculation of Visual Display ---
+        if not self.current_text:
+             # Handle empty text case
              self.display_text = ""
              self.text_x = PADDING // SCALE_FACTOR
              self.cursor_x = PADDING // SCALE_FACTOR
-             print("Initialization complete (No text).")
+             # print("Visual state set (Empty text).") # Debug
              return
 
-        current_full_text = self.current_text
-
         # Find the start of the current line based on the last newline before char_index
-        last_newline_index = current_full_text.rfind('\n', 0, self.char_index)
+        last_newline_index = self.current_text.rfind('\n', 0, self.char_index)
         line_start_index = last_newline_index + 1
 
         # Extract the content of the line up to the target character
-        self.display_text = current_full_text[line_start_index : self.char_index]
+        current_line_content = self.current_text[line_start_index : self.char_index]
+        self.display_text = current_line_content # This is what should be visible
 
         # Calculate the width and positions based on this line content
         if not self.display_text:
@@ -505,30 +434,38 @@ class VFDGenerator:
                  text_rect = self.font.get_rect(self.display_text)
                  current_line_width = text_rect.width
             except pygame.error as e:
-                 print(f"Warning: Pygame error getting rect for '{self.display_text}' during init: {e}. Using width 0.")
+                 print(f"Warning: Pygame error getting rect for '{self.display_text}' during visual state set: {e}. Using width 0.")
                  current_line_width = 0
 
+            # Calculate where the cursor would be if there was infinite space
             naive_cursor_x = PADDING // SCALE_FACTOR + current_line_width
 
-            # Apply the same scrolling logic used in _simulate_typing_step
-            available_width = ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR) # Width available for text + cursor
+            # Apply scrolling logic
             cursor_space = CURSOR_WIDTH // SCALE_FACTOR + (PADDING // SCALE_FACTOR) # Cursor width + right padding
 
             if naive_cursor_x + cursor_space > ORIGINAL_WIDTH:
-                 # Scrolling should be active
+                 # Scrolling should be active: Cursor fixed near right, text shifts left
                  self.cursor_x = ORIGINAL_WIDTH - cursor_space
                  self.text_x = self.cursor_x - current_line_width
             else:
-                 # Not scrolling
+                 # Not scrolling: Text starts at left padding, cursor follows text
                  self.cursor_x = naive_cursor_x
                  self.text_x = PADDING // SCALE_FACTOR
 
-        # Final check: If animation is finished, place cursor at the end of the displayed text
-        if self.animation_finished:
-            # Recalculate position based on the *entire* last line if finished
-            last_newline_index = current_full_text.rfind('\n', 0)
+        # --- Handle Animation Finished State ---
+        # If the animation is marked as finished, ensure the display shows the
+        # end of the *last* line of the *last* text, potentially scrolled.
+        if self.animation_finished and TEXT_ARRAY:
+            # Ensure we are definitely using the last text
+            self.current_text_index = len(TEXT_ARRAY) - 1
+            self.current_text = TEXT_ARRAY[self.current_text_index]
+            self.char_index = len(self.current_text) # Ensure char_index is at the very end
+
+            # Recalculate display based on the *entire* last line
+            last_newline_index = self.current_text.rfind('\n', 0)
             line_start_index = last_newline_index + 1
-            self.display_text = current_full_text[line_start_index:] # Full last line
+            self.display_text = self.current_text[line_start_index:] # Full last line
+
             try:
                 text_rect = self.font.get_rect(self.display_text)
                 current_line_width = text_rect.width
@@ -536,23 +473,20 @@ class VFDGenerator:
                 print(f"Warning: Pygame error getting rect for finished line '{self.display_text}': {e}. Using width 0.")
                 current_line_width = 0
 
+            # Recalculate positions for the finished state
             naive_cursor_x = PADDING // SCALE_FACTOR + current_line_width
-            available_width = ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR)
             cursor_space = CURSOR_WIDTH // SCALE_FACTOR + (PADDING // SCALE_FACTOR)
 
             if naive_cursor_x + cursor_space > ORIGINAL_WIDTH:
+                 # Scroll if last line is too long
                  self.cursor_x = ORIGINAL_WIDTH - cursor_space
                  self.text_x = self.cursor_x - current_line_width
             else:
+                 # Position normally if last line fits
                  self.cursor_x = naive_cursor_x
                  self.text_x = PADDING // SCALE_FACTOR
-            # Ensure char_index reflects the true end
-            self.char_index = len(current_full_text)
 
-
-        print(f"Initialization complete. State: Text #{self.current_text_index}, Char #{self.char_index}, Finished: {self.animation_finished}")
-        print(f"Initial display line: '{self.display_text}'")
-        print(f"Initial text_x: {self.text_x}, cursor_x: {self.cursor_x}")
+        # print(f"Visual state set: Txt {self.current_text_index} Ch {self.char_index} Fin={self.animation_finished} Disp='{self.display_text}' Tx={self.text_x} Cx={self.cursor_x}") # Debug
 
     def toggle_cursor(self):
         """Toggle cursor visibility for blinking effect"""
@@ -562,83 +496,38 @@ class VFDGenerator:
             self.cursor_last_toggle = now
 
     def update_animation(self):
-        """Update animation state based on absolute time."""
+        """Update animation state based on absolute time using direct calculation."""
         current_datetime = datetime.now()
 
-        # Don't start animating before the designated start time
+        # --- Handle Waiting State ---
         if current_datetime < self.start_time:
-            #  # Display "Waiting..." message centered
-            #  wait_text = "Waiting..."
-            #  try:
-            #      text_rect = self.font.get_rect(wait_text)
-            #      wait_width = text_rect.width
-            #  except pygame.error:
-            #      wait_width = 8 * len(wait_text) # Estimate if font fails
-
-            #  self.display_text = wait_text
-            #  self.text_x = (ORIGINAL_WIDTH - wait_width) // 2
-            #  self.cursor_x = self.text_x + wait_width # Position cursor after text
+             # Display is blank while waiting before the start time
              self.display_text = ''
-             self.cursor_x = 0
-             self.animation_finished = False # Ensure not marked finished while waiting
-             return # Don't process further
+             self.text_x = PADDING // SCALE_FACTOR
+             self.cursor_x = PADDING // SCALE_FACTOR # Show cursor at start pos while waiting
+             self.animation_finished = False # Ensure not marked finished
+             # Reset internal state to the beginning for when it starts
+             self.current_text_index = 0
+             self.char_index = 0
+             if TEXT_ARRAY:
+                 self.current_text = TEXT_ARRAY[0]
+             else:
+                 self.current_text = ""
+             self.cursor_visible = True # Keep cursor solid while waiting? Or let it blink? Blinking is fine.
+             return # Don't do further calculations until start time
 
+        # --- Calculate Target State ---
         elapsed_seconds = (current_datetime - self.start_time).total_seconds()
-
-        # If already marked as finished, only update cursor blink, don't recalculate
-        if self.animation_finished: # and elapsed_seconds >= self.total_duration_seconds: # Removed second check, finished flag is enough
-             # Ensure cursor is visible if animation just finished
-             if not self.cursor_visible: self.cursor_last_toggle = 0 # Force toggle check
-             return
-
-        # Calculate where we *should* be right now
         target_text_index, target_char_index = self.calculate_target_state(elapsed_seconds)
 
-        # Clamp target index if needed (safety check)
-        if not TEXT_ARRAY:
-             target_text_index = 0
-             target_char_index = 0
-        else:
-             # Allow target_text_index to be len(TEXT_ARRAY) to signal end
-             if target_text_index >= len(TEXT_ARRAY):
-                  target_text_index = len(TEXT_ARRAY) -1
-                  target_char_index = len(TEXT_ARRAY[target_text_index])
-                  self.animation_finished = True # Mark finished if target calculation goes past end
-             else:
-                  target_text_index = max(0, target_text_index)
-                  target_char_index = max(0, min(len(TEXT_ARRAY[target_text_index]), target_char_index))
+        # --- Set Visual State Directly ---
+        # No simulation loop needed. Just calculate the visual state based on the target indices.
+        # The _set_visual_state_from_target function handles updating self.current_text_index,
+        # self.char_index, self.animation_finished, self.display_text, self.text_x, self.cursor_x.
+        self._set_visual_state_from_target(target_text_index, target_char_index)
 
-        # Advance the simulation step-by-step until the current state matches the target state
-        steps_taken_this_frame = 0
-        # Safety limit increased slightly, but direct init should prevent hitting it.
-        max_steps_per_frame = 250
-
-        # Condition to check if we are behind the target state
-        is_behind = False
-        if not self.animation_finished:
-            if self.current_text_index < target_text_index:
-                 is_behind = True
-            elif self.current_text_index == target_text_index and self.char_index < target_char_index:
-                 is_behind = True
-
-        while is_behind and not self.animation_finished:
-             if not self._simulate_typing_step():
-                  # Simulation step indicated no change possible (likely hit end prematurely)
-                  print("Warning: Simulation step returned False unexpectedly during update.")
-                  break
-             steps_taken_this_frame += 1
-             if steps_taken_this_frame > max_steps_per_frame:
-                  print(f"Warning: Exceeded max steps ({max_steps_per_frame}) in single update frame. Target: Txt {target_text_index} Char {target_char_index}. Current: Txt {self.current_text_index} Char {self.char_index}")
-                  # Force state to target to prevent getting stuck (will cause visual jump)
-                  self.initialize_state_directly() # Resync completely
-                  break # Exit loop after resync
-
-             # Re-evaluate if we are still behind after the step
-             if self.current_text_index > target_text_index: # Overshot text index?
-                   is_behind = False
-             elif self.current_text_index == target_text_index and self.char_index >= target_char_index: # Reached target char index
-                   is_behind = False
-             # else: is_behind remains True
+        # Cursor blinking is handled separately and still needs to run.
+        # self.toggle_cursor() # This is called in the main loop already
 
 
     def render_frame(self):
@@ -655,19 +544,27 @@ class VFDGenerator:
                 text_rect.left = self.text_x
                 self.surface.blit(text_surf, text_rect)
             except pygame.error as e:
-                 print(f"Warning: Pygame error rendering text '{self.display_text}': {e}", end='\r')
+                 # Reduce console spam by only printing distinct errors
+                 if not hasattr(self, '_last_render_error') or self._last_render_error != str(e):
+                      print(f"\nWarning: Pygame error rendering text '{self.display_text[:20]}...': {e}")
+                      self._last_render_error = str(e)
             except Exception as e:
-                 print(f"Non-pygame error rendering text: {e}", end='\r')
+                 if not hasattr(self, '_last_render_error') or self._last_render_error != str(e):
+                      print(f"\nNon-pygame error rendering text: {e}")
+                      self._last_render_error = str(e)
 
 
         # Draw cursor if it should be visible
         # Show blinking cursor if animation is running OR if it's finished
-        if self.cursor_visible: #and (not self.animation_finished or elapsed_seconds >= self.total_duration_seconds):
+        # Also show cursor if we are waiting before the start time
+        if self.cursor_visible:
              # Determine Y position for cursor
              cursor_y = (ORIGINAL_HEIGHT - (CURSOR_HEIGHT // SCALE_FACTOR)) // 2
              # Clamp cursor_x to be within bounds, accounting for padding
              max_cursor_x = ORIGINAL_WIDTH - (PADDING // SCALE_FACTOR) - (CURSOR_WIDTH // SCALE_FACTOR)
+             # Use max(PADDING // SCALE_FACTOR, ...) to prevent cursor going into left padding
              draw_cursor_x = max(PADDING // SCALE_FACTOR, min(max_cursor_x, self.cursor_x))
+
              # Draw the rectangle
              try:
                   pygame.draw.rect(self.surface, VFD_TEXT_COLOR,
@@ -675,7 +572,10 @@ class VFDGenerator:
                                   CURSOR_WIDTH // SCALE_FACTOR,
                                   CURSOR_HEIGHT // SCALE_FACTOR))
              except Exception as e:
-                  print(f"Error drawing cursor: {e}", end='\r')
+                  # Reduce console spam
+                  if not hasattr(self, '_last_cursor_error') or self._last_cursor_error != str(e):
+                      print(f"\nError drawing cursor: {e}")
+                      self._last_cursor_error = str(e)
 
 
     def convert_to_bitmap(self):
@@ -693,7 +593,10 @@ class VFDGenerator:
                     else:
                         pixel = self.surface.get_at((x, y))
                 except IndexError:
-                     print(f"Error: get_at({x}, {y}) out of bounds for surface ({ORIGINAL_WIDTH}x{ORIGINAL_HEIGHT})")
+                     # This should ideally not happen with correct surface/coords
+                     if not hasattr(self, '_last_pixel_error_pos') or self._last_pixel_error_pos != (x,y):
+                          print(f"\nError: get_at({x}, {y}) out of bounds for surface ({ORIGINAL_WIDTH}x{ORIGINAL_HEIGHT})")
+                          self._last_pixel_error_pos = (x,y)
                      continue # Skip faulty pixel
 
                 # Check if luminance is above threshold (simple brightness check)
@@ -707,7 +610,7 @@ class VFDGenerator:
                     # Ensure byte_index is valid
                     if 0 <= byte_index < num_bytes:
                          bitmap[byte_index] |= (1 << bit_index)
-                    # else:
+                    # else: # This check might be too verbose if it ever happens
                     #      print(f"Error: Calculated byte_index {byte_index} out of bounds (0-{num_bytes-1}) for pixel {x},{y}")
 
         return bitmap
@@ -717,18 +620,32 @@ class VFDGenerator:
         try:
             bitmap = self.convert_to_bitmap()
             self.sock.sendto(bitmap, (UDP_IP, UDP_PORT))
-        except socket.gaierror:
-             print(f"Error: Cannot resolve hostname/IP: {UDP_IP}. Check network settings.", end='\r')
-             time.sleep(5) # Prevent spamming errors
+            # Clear previous error state on success
+            if hasattr(self, '_last_send_error'):
+                del self._last_send_error
+        except socket.gaierror as e:
+             # Log error only if it's new
+             if not hasattr(self, '_last_send_error') or self._last_send_error != str(e):
+                 print(f"\nError: Cannot resolve hostname/IP: {UDP_IP}. Check network settings. ({e})")
+                 self._last_send_error = str(e)
+             time.sleep(2) # Prevent spamming errors, shorter sleep
         except OSError as e:
              # Catch specific errors like Network is unreachable more gracefully
+             log_msg = ""
              if e.errno == 101: # Network is unreachable
-                  print(f"Network Error: Network is unreachable for {UDP_IP}:{UDP_PORT}. Retrying...", end='\r')
+                  log_msg = f"Network Error: Network is unreachable for {UDP_IP}:{UDP_PORT}. Retrying..."
              else:
-                  print(f"Network Error: {e}. Check IP/Port ({UDP_IP}:{UDP_PORT}) and network connection.", end='\r')
-             time.sleep(5)
+                  log_msg = f"Network Error: {e}. Check IP/Port ({UDP_IP}:{UDP_PORT}) and network connection."
+
+             if not hasattr(self, '_last_send_error') or self._last_send_error != str(e):
+                 print(f"\n{log_msg}")
+                 self._last_send_error = str(e)
+             time.sleep(2) # Shorter sleep
         except Exception as e:
-            print(f"Error sending frame: {e}")
+            if not hasattr(self, '_last_send_error') or self._last_send_error != str(e):
+                print(f"\nError sending frame: {e}")
+                self._last_send_error = str(e)
+            time.sleep(1) # Short sleep for general errors
 
 
     def run(self):
@@ -756,7 +673,7 @@ class VFDGenerator:
             # Render the frame
             self.render_frame()
 
-            # Send the frame (only send if needed, maybe add check for changes?)
+            # Send the frame
             self.send_frame()
 
             # Log status every 10 seconds
@@ -766,7 +683,9 @@ class VFDGenerator:
                 last_log_time = current_time
 
             frame_count += 1
-            clock.tick(30)  # Aim for ~30 fps, adjust as needed
+            # Aim for ~20-30 fps. Lower FPS might be fine for VFD and reduce CPU load.
+            # Test what looks acceptable. Start with 20.
+            clock.tick(20)
 
         print("\nExiting.")
         pygame.quit()
@@ -779,74 +698,84 @@ class VFDGenerator:
         current_datetime = datetime.now()
 
         # Calculate time difference from start
-        elapsed = current_datetime - self.start_time
-        days, remainder = divmod(elapsed.total_seconds(), 86400)
-        hours, remainder = divmod(remainder, 3600)
-        minutes, seconds = divmod(remainder, 60)
+        elapsed_seconds = (current_datetime - self.start_time).total_seconds()
 
-        # Format time difference
-        time_diff = f"{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s"
+        time_diff_str = ""
+        if elapsed_seconds < 0:
+             time_diff_str = f"Starts in {-elapsed_seconds:.0f}s"
+        else:
+             days, remainder = divmod(elapsed_seconds, 86400)
+             hours, remainder = divmod(remainder, 3600)
+             minutes, seconds = divmod(remainder, 60)
+             time_diff_str = f"{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds):.0f}s"
+
 
         # Get current text information
-        if not TEXT_ARRAY or self.current_text_index >= len(TEXT_ARRAY):
-            text_info = "No text available"
-            context = "No context available"
+        if not TEXT_ARRAY:
+            text_info = "No text loaded"
+            context = "N/A"
+        elif self.current_text_index >= len(TEXT_ARRAY): # Should not happen with new logic, but safety check
+            text_info = f"Index Error (Index: {self.current_text_index}, Max: {len(TEXT_ARRAY)-1})"
+            context = "N/A"
         else:
-            # Calculate relative position within current text
-            current_text = TEXT_ARRAY[self.current_text_index]
-            total_chars = len(current_text)
-            relative_pos = f"{self.char_index}/{total_chars}" if total_chars > 0 else "0/0"
-            percentage = f"{(self.char_index / total_chars * 100):.1f}%" if total_chars > 0 else "0.0%"
+            # These are now updated directly by _set_visual_state_from_target
+            current_text_idx = self.current_text_index
+            current_char_idx = self.char_index
+            current_text = self.current_text # TEXT_ARRAY[current_text_idx]
 
-            text_info = f"Text #{self.current_text_index} (of {len(TEXT_ARRAY)-1}), Char #{self.char_index} ({relative_pos}, {percentage})"
+            total_chars = len(current_text)
+            relative_pos = f"{current_char_idx}/{total_chars}" if total_chars > 0 else "0/0"
+            percentage = f"{(current_char_idx / total_chars * 100):.1f}%" if total_chars > 0 else "N/A"
+
+            text_info = f"Text #{current_text_idx}/{len(TEXT_ARRAY)-1}, Char {relative_pos} ({percentage})"
 
             # Get context around cursor
-            context_before = current_text[max(0, self.char_index-50):self.char_index]
-            context_after = current_text[self.char_index:min(len(current_text), self.char_index+50)]
-            context = f"\"...{context_before.replace(chr(10), '/')}<-CURSOR->{context_after.replace(chr(10), '/')}...\""
+            context_before = current_text[max(0, current_char_idx-30):current_char_idx]
+            context_after = current_text[current_char_idx:min(len(current_text), current_char_idx+30)]
+            context = f"Context: \"...{context_before.replace(chr(10), '/')}<-CURSOR->{context_after.replace(chr(10), '/')}...\""
 
         # Print the log
-        print(f"\n[{current_datetime.strftime('%Y-%m-%d %H:%M:%S')}] Elapsed: {time_diff} from start")
-        print(f"Position: {text_info}")
-        print(f"Context: {context}")
-        print(f"Animation {'finished' if self.animation_finished else 'in progress'}")
-
-        # Print a separator for readability
-        print("-" * 80)
+        print(f"\n--- Status @ {current_datetime.strftime('%Y-%m-%d %H:%M:%S')} ---")
+        print(f"Time State: {time_diff_str} from start ({self.start_time.strftime('%H:%M:%S')})")
+        print(f"Position:   {text_info}")
+        print(f"State:      Animation {'finished' if self.animation_finished else 'in progress' if elapsed_seconds >= 0 else 'waiting to start'}")
+        print(f"{context}")
+        print(f"Display:    '{self.display_text}' (TxtX: {self.text_x}, CrsrX: {self.cursor_x}, CrsrVis: {self.cursor_visible})")
+        print("-" * (len(f"--- Status @ {current_datetime.strftime('%Y-%m-%d %H:%M:%S')} ---")))
 
 
 if __name__ == "__main__":
     if not TEXT_ARRAY or not TEXT_DURATIONS:
          print("Error: No text loaded or durations calculated. Cannot start animation.")
-         # Ensure pygame is quit if it was initialized
          if pygame.get_init():
               pygame.quit()
          sys.exit(1)
 
-    # Add basic check for font loading success if possible
+    generator = None # Define generator outside try block for cleanup
     try:
         generator = VFDGenerator()
-        if not generator.font: # Check if font loading failed completely
-             raise RuntimeError("Font loading failed, cannot proceed.")
         generator.run()
     except RuntimeError as e:
-         print(f"Runtime Error: {e}")
+         print(f"\nRuntime Error during setup: {e}")
          if pygame.get_init():
               pygame.quit()
          sys.exit(1)
     except KeyboardInterrupt:
          print("\nCaught Ctrl+C, exiting.")
-         # Try to cleanup pygame and socket gracefully
-         if 'generator' in locals() and generator:
-              if pygame.get_init():
-                  pygame.quit()
-              if generator.sock:
-                  generator.sock.close()
-         sys.exit(0)
+         # Cleanup handled in finally block
     except Exception as e:
          print(f"\nAn unexpected error occurred: {e}")
          import traceback
          traceback.print_exc()
-         if pygame.get_init():
-             pygame.quit()
-         sys.exit(1)
+         # Cleanup handled in finally block
+    finally:
+        # Ensure cleanup happens regardless of how we exit
+        print("Cleaning up resources...")
+        if generator and generator.sock:
+            generator.sock.close()
+            print("Socket closed.")
+        if pygame.get_init():
+            pygame.quit()
+            print("Pygame quit.")
+        print("Cleanup finished.")
+        sys.exit(0 if isinstance(sys.exc_info()[1], KeyboardInterrupt) else 1)
