@@ -34,6 +34,8 @@ def parse_args():
     parser.add_argument('--start', default='20250424-190000',
                         help='Start time for animation in YYYYMMDD-HHMMSS format (defaults to current time + 10 seconds)')
     parser.add_argument('--rotate-180', action='store_true', help='Rotate the display output by 180 degrees')
+    parser.add_argument('--debug-interval', type=int, default=0,
+                        help='Interval in seconds between debug status logs (0 = disabled)')
     return parser.parse_args()
 
 # Get command line arguments
@@ -676,9 +678,9 @@ class VFDGenerator:
             # Send the frame
             self.send_frame()
 
-            # Log status every 10 seconds
+            # Log status at specified interval (if enabled)
             current_time = time.monotonic()
-            if current_time - last_log_time >= 10:  # Log every 10 seconds
+            if args.debug_interval > 0 and current_time - last_log_time >= args.debug_interval:
                 self.log_status()
                 last_log_time = current_time
 
