@@ -17,8 +17,8 @@ WorkingDirectory=$(pwd)
 User=$USER
 Restart=always
 RestartSec=3
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=vfd_generate
 PAMName=login
 
