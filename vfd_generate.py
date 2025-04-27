@@ -659,17 +659,28 @@ class VFDGenerator:
         running = True
         clock = pygame.time.Clock()
         frame_count = 0
-        last_log_time = time.monotonic()  # Track when we last logged
-
-        # Add this to track performance
+        last_log_time = time.monotonic()
         last_performance_check = time.monotonic()
-        performance_check_interval = 30  # Check every 30 seconds
+        performance_check_interval = 30
+
+        # Performance tracking
+        timing_stats = {
+            "update_animation": [],
+            "toggle_cursor": [],
+            "render_frame": [],
+            "convert_to_bitmap": [],
+            "send_frame": [],
+            "total_frame": []
+        }
+        timing_window = 100  # Keep stats for last 100 frames
 
         while running:
-            # IMPORTANT FIX: Clear the event queue completely each iteration
+            frame_start = time.perf_counter()
+
+            # Clear event queue
             pygame.event.clear()
 
-            # Handle only the most recent events
+            # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -677,27 +688,70 @@ class VFDGenerator:
                     if event.key == pygame.K_ESCAPE:
                         running = False
 
-            # Update animation state based on absolute time
+            # Update animation state
+            t1 = time.perf_counter()
             self.update_animation()
+            t2 = time.perf_counter()
+            timing_stats["update_animation"].append((t2 - t1) * 1000)
 
-            # Toggle cursor for blinking effect
+            # Toggle cursor
+            t1 = time.perf_counter()
             self.toggle_cursor()
+            t2 = time.perf_counter()
+            timing_stats["toggle_cursor"].append((t2 - t1) * 1000)
 
-            # Render the frame
+            # Render frame
+            t1 = time.perf_counter()
             self.render_frame()
+            t2 = time.perf_counter()
+            timing_stats["render_frame"].append((t2 - t1) * 1000)
 
-            # Send the frame
-            self.send_frame()
+            # Convert and send frame
+            t1 = time.perf_counter()
+            bitmap = self.convert_to_bitmap()
+            t2 = time.perf_counter()
+            timing_stats["convert_to_bitmap"].append((t2 - t1) * 1000)
 
-            # Log status at specified interval (if enabled)
+            t1 = time.perf_counter()
+            try:
+                self.sock.sendto(bitmap, (UDP_IP, UDP_PORT))
+                if hasattr(self, '_last_send_error'):
+                    del self._last_send_error
+            except Exception as e:
+                # Error handling (keep existing code)
+                pass
+            t2 = time.perf_counter()
+            timing_stats["send_frame"].append((t2 - t1) * 1000)
+
+            # Total frame time
+            frame_end = time.perf_counter()
+            frame_time = (frame_end - frame_start) * 1000
+            timing_stats["total_frame"].append(frame_time)
+
+            # Trim timing stats to window size
+            for key in timing_stats:
+                if len(timing_stats[key]) > timing_window:
+                    timing_stats[key] = timing_stats[key][-timing_window:]
+
+            # Log status at specified interval
             current_time = time.monotonic()
             if args.debug_interval > 0 and current_time - last_log_time >= args.debug_interval:
                 self.log_status()
+
+                # Also log performance stats
+                print("\n=== Performance Stats (last 100 frames, ms) ===")
+                for key, times in timing_stats.items():
+                    if times:
+                        avg = sum(times) / len(times)
+                        max_time = max(times)
+                        min_time = min(times)
+                        print(f"{key}: avg={avg:.2f} min={min_time:.2f} max={max_time:.2f}")
+                print("==============================================")
+
                 last_log_time = current_time
 
-            # Performance monitoring
+            # Performance monitoring (keep existing code)
             if current_time - last_performance_check >= performance_check_interval:
-                # Force garbage collection
                 import gc
                 collected = gc.collect()
                 if args.debug_interval > 0:
@@ -705,8 +759,6 @@ class VFDGenerator:
                 last_performance_check = current_time
 
             frame_count += 1
-            # Aim for ~20-30 fps. Lower FPS might be fine for VFD and reduce CPU load.
-            # Test what looks acceptable. Start with 20.
             clock.tick(20)
 
         print("\nExiting.")
