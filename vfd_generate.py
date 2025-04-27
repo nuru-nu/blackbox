@@ -28,8 +28,8 @@ def parse_args():
                         'see `fc-list` or `pygame.font.get_fonts()`')
     parser.add_argument('--text', default='20250424_044729.json', help='Path to JSON file containing text array')
     parser.add_argument('--first-hours', type=float, default=5, help='Hours to spend on first text')
-    parser.add_argument('--last-hours', type=float, default=24, help='Hours to spend on last text')
-    parser.add_argument('--default-hours', type=float, default=19, help='Hours to spend on each text between first and last')
+    parser.add_argument('--last-hours', type=float, default=19, help='Hours to spend on last text')
+    parser.add_argument('--default-hours', type=float, default=24, help='Hours to spend on each text between first and last')
     # parser.add_argument('--start', default=(datetime.now() + timedelta(seconds=5)).strftime("%Y%m%d-%H%M%S"),
     parser.add_argument('--start', default='20250424-190000',
                         help='Start time for animation in YYYYMMDD-HHMMSS format (defaults to current time + 10 seconds)')
