@@ -534,26 +534,30 @@ class VFDGenerator:
 
     def render_frame(self):
         """Render the current frame to the surface"""
+        # Clear the surface completely each time
         self.surface.fill(VFD_BG_COLOR)
         self.surface.blit(self.grid_texture, (0, 0))
 
         # Draw the visible portion of the text
         if self.display_text:
             try:
-                text_surf, text_rect = self.font.render(self.display_text, VFD_TEXT_COLOR) # Default AA
+                # Create a new surface each time and immediately blit it
+                text_surf, text_rect = self.font.render(self.display_text, VFD_TEXT_COLOR)
                 # Adjust vertical alignment based on rendered height
                 text_rect.top = (ORIGINAL_HEIGHT - text_rect.height) // 2
                 text_rect.left = self.text_x
                 self.surface.blit(text_surf, text_rect)
+                # Explicitly delete the text surface after blitting
+                del text_surf
             except pygame.error as e:
-                 # Reduce console spam by only printing distinct errors
-                 if not hasattr(self, '_last_render_error') or self._last_render_error != str(e):
-                      print(f"\nWarning: Pygame error rendering text '{self.display_text[:20]}...': {e}")
-                      self._last_render_error = str(e)
+                # Reduce console spam by only printing distinct errors
+                if not hasattr(self, '_last_render_error') or self._last_render_error != str(e):
+                    print(f"\nWarning: Pygame error rendering text '{self.display_text[:20]}...': {e}")
+                    self._last_render_error = str(e)
             except Exception as e:
-                 if not hasattr(self, '_last_render_error') or self._last_render_error != str(e):
-                      print(f"\nNon-pygame error rendering text: {e}")
-                      self._last_render_error = str(e)
+                if not hasattr(self, '_last_render_error') or self._last_render_error != str(e):
+                    print(f"\nNon-pygame error rendering text: {e}")
+                    self._last_render_error = str(e)
 
 
         # Draw cursor if it should be visible
@@ -657,8 +661,15 @@ class VFDGenerator:
         frame_count = 0
         last_log_time = time.monotonic()  # Track when we last logged
 
+        # Add this to track performance
+        last_performance_check = time.monotonic()
+        performance_check_interval = 30  # Check every 30 seconds
+
         while running:
-            # Handle events (just for quitting)
+            # IMPORTANT FIX: Clear the event queue completely each iteration
+            pygame.event.clear()
+
+            # Handle only the most recent events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -683,6 +694,15 @@ class VFDGenerator:
             if args.debug_interval > 0 and current_time - last_log_time >= args.debug_interval:
                 self.log_status()
                 last_log_time = current_time
+
+            # Performance monitoring
+            if current_time - last_performance_check >= performance_check_interval:
+                # Force garbage collection
+                import gc
+                collected = gc.collect()
+                if args.debug_interval > 0:
+                    print(f"\nGC: collected {collected} objects")
+                last_performance_check = current_time
 
             frame_count += 1
             # Aim for ~20-30 fps. Lower FPS might be fine for VFD and reduce CPU load.
