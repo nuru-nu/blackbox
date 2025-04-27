@@ -191,13 +191,13 @@ def main():
         elif isinstance(x, str):
           charset |= {*x}
         return charset
-      charset = ''.join(rek(json.load(open(args.chars_file))))
+      charset = ''.join(sorted(rek(json.load(open(args.chars_file)))))
     elif args.chars:
       charset = args.chars
     else:
       charset = get_default_charset()
 
-    print('charset size', len(charset))
+    print('charset size', len(charset), charset)
 
     # Generate character mapping
     char_map = generate_font_mapping(font, charset, args.char_height, args.padding)

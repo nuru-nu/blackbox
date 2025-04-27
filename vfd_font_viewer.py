@@ -164,13 +164,13 @@ def main():
             bitmap = char_data.get("bitmap", [])
             draw_character(screen, bitmap, x, y, scale, fg_color)
 
-            # Draw character code
+            # Draw character UTF-8 representation instead of hex code
             try:
-                char_code = f"{ord(char):X}"
-                code_surf = label_font.render(char_code, True, grid_color)
-                screen.blit(code_surf, (x, y + char_height * scale + 2))
+                # Display the actual character instead of its hex code
+                char_surf = label_font.render(hex(ord(char))[2:], True, grid_color)
+                screen.blit(char_surf, (x, y))
             except:
-                pass  # Skip if character can't be encoded
+                pass  # Skip if character can't be rendered
 
             char_index += 1
 
