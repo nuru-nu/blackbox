@@ -21,6 +21,7 @@ def parse_args():
   parser.add_argument('--font-size', type=int, default=18, help='Font size in pixels')
   parser.add_argument('--char-height', type=int, default=24, help='Fixed height for all character bitmaps')
   parser.add_argument('--chars', default=None, help='Specific characters to include (if not specified, includes ASCII 32-126 plus common symbols)')
+  parser.add_argument('--chars-file', default=None, help='JSON file that contains characters to include')
   parser.add_argument('--padding', type=int, default=0, help='Horizontal padding for each character')
   return parser.parse_args()
 
@@ -174,11 +175,29 @@ def main():
       print("Error: Failed to load any suitable font.")
       return 1
 
+    assert not (args.chars and args.chars_file)
+
     # Get character set
-    if args.chars:
+    if args.chars_file:
+      def rek(x, charset=None):
+        if charset is None:
+          charset = set()
+        if isinstance(x, dict):
+          for v in x.values():
+            rek(v, charset)
+        elif isinstance(x, list):
+          for v in x:
+            rek(v, charset)
+        elif isinstance(x, str):
+          charset |= {*x}
+        return charset
+      charset = ''.join(rek(json.load(open(args.chars_file))))
+    elif args.chars:
       charset = args.chars
     else:
       charset = get_default_charset()
+
+    print('charset size', len(charset))
 
     # Generate character mapping
     char_map = generate_font_mapping(font, charset, args.char_height, args.padding)
