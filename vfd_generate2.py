@@ -158,6 +158,7 @@ def play_sentence(sentence, t1, t2, font):
         if ts[j]:
           ts[j] += 1.2
           break
+        j -= 1
       ts.append(0)
     else:
       ts.append(1)
