@@ -150,13 +150,13 @@ def play_sentence(sentence, t1, t2, font):
   for i, c in enumerate(sentence):
     if c in '.!?;':
       # pause after punctuation
-      ts.append(10)
-    elif c == ' ':
+      ts.append(5)
+    elif c in (' ', '\n'):
       # pause before whitespace
       j = i - 1
       while j > 0:
         if ts[j]:
-          ts[j] += 1.2
+          ts[j] += {' ': 1.2, '\n': 5}[c]
           break
         j -= 1
       ts.append(0)
@@ -172,6 +172,7 @@ def play_sentence(sentence, t1, t2, font):
   t = 0
   cursor = Cursor()
   for i, c in enumerate(sentence):
+    c = {'\n': ' '}.get(c, c)
     w = fc[c]['width']
     x0 += w
     scroll = x0 - (DISPLAY_WIDTH - PADDING - CURSOR_WIDTH)
