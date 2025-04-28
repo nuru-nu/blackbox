@@ -12,7 +12,7 @@ After=network.target
 
 [Service]
 Nice=-10
-ExecStart=$(pwd)/env/bin/python $(pwd)/vfd_generate.py --ip=vfd
+ExecStart=$(pwd)/env/bin/python $(pwd)/vfd_generate.py --dst=vfd
 WorkingDirectory=$(pwd)
 User=$USER
 Restart=always
