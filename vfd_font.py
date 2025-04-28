@@ -57,16 +57,40 @@ def render_char_to_bitmap(font, char):
   try:
     font.load_char(char, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_MONO)
     bitmap = font.glyph.bitmap
-    # Use advance.x for the width the character occupies in text
     width = font.glyph.advance.x // 64  # advance.x is in 1/64th pixels
-    # Use a consistent height (e.g., font.size.height // 64 or bitmap.rows)
-    height = font.size.height // 64 if font.size and font.size.height else bitmap.rows
+
+    # Get the font's total height (in pixels)
+    total_height = font.size.height // 64 if font.size and font.size.height else bitmap.rows
+
+    # The vertical distance from the baseline to the top of the bitmap
+    top = font.glyph.bitmap_top
+    # The vertical distance from the baseline to the bottom of the bitmap
+    bottom = top - bitmap.rows
+
+    # Calculate how many rows to pad above and below
+    baseline = font.size.ascender // 64 if font.size and font.size.ascender else top
+    pad_above = baseline - top
+    pad_below = total_height - (pad_above + bitmap.rows)
 
     # Convert the bitmap buffer to a 2D numpy array (monochrome)
     arr = np.array(bitmap.buffer, dtype=np.uint8).reshape((bitmap.rows, bitmap.pitch))
     arr = np.unpackbits(arr, axis=1)[:, :bitmap.width]
+
+    # Pad left/right to match advance width if needed
+    pad_right = width - bitmap.width - (font.glyph.bitmap_left if hasattr(font.glyph, 'bitmap_left') else 0)
+    pad_left = font.glyph.bitmap_left if hasattr(font.glyph, 'bitmap_left') else 0
+
+    # Pad the bitmap to the correct width
+    arr = np.pad(arr, ((0, 0), (pad_left, pad_right)), mode='constant', constant_values=0)
+
+    # Pad above and below to align to baseline and total height
+    arr = np.pad(arr, ((pad_above, pad_below), (0, 0)), mode='constant', constant_values=0)
+
+    # Ensure the final shape is (total_height, width)
+    arr = arr[:total_height, :width]
+
     bitmap_list = arr.tolist()
-    return bitmap_list, width, height
+    return bitmap_list, width, total_height
   except Exception as e:
     print(f"Warning: Could not render character '{char}' (code: {ord(char)}): {e}")
     return None, 0, 0
