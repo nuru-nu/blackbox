@@ -18,8 +18,7 @@ def parse_args():
   parser = argparse.ArgumentParser(description='Generate VFD font bitmap mapping')
   parser.add_argument('--output', default='vfd_font.json', help='Output JSON file path')
   parser.add_argument('--font', default='./KodeMono.ttf', help='Path to font file or name of system font')
-  parser.add_argument('--font-size', type=int, default=18, help='Font size in pixels')
-  parser.add_argument('--char-height', type=int, default=24, help='Fixed height for all character bitmaps')
+  parser.add_argument('--font-size', type=int, default=18, help='Font size in pixels (optional, uses font default if not set)')
   parser.add_argument('--chars', default=None, help='Specific characters to include (if not specified, includes ASCII 32-126 plus common symbols)')
   parser.add_argument('--chars-file', default=None, help='JSON file that contains characters to include')
   parser.add_argument('--padding', type=int, default=0, help='Horizontal padding for each character')
@@ -30,10 +29,10 @@ def load_font(font_path, font_size):
   """Load the specified font or try to find a suitable default"""
   try:
     if os.path.exists(font_path):
-      print(f"Loading font from file: {font_path} ({font_size}px)")
+      print(f"Loading font from file: {font_path} ({font_size if font_size else 'default'}px)")
       return pygame.freetype.Font(font_path, font_size)
     else:
-      print(f"Loading system font: {font_path} ({font_size}px)")
+      print(f"Loading system font: {font_path} ({font_size if font_size else 'default'}px)")
       return pygame.freetype.SysFont(font_path, font_size)
   except Exception as e:
     print(f"Warning: Could not load specified font '{font_path}': {e}")
@@ -41,7 +40,7 @@ def load_font(font_path, font_size):
   # Fallback fonts
   for font_name in ["DejaVu Sans Mono", "Consolas", "Monaco", "Courier New", "Courier", "monospace"]:
     try:
-      print(f"Trying fallback font: {font_name} ({font_size}px)")
+      print(f"Trying fallback font: {font_name} ({font_size if font_size else 'default'}px)")
       return pygame.freetype.SysFont(font_name, font_size)
     except Exception:
       continue  # Try next font
@@ -62,9 +61,8 @@ def get_default_charset():
   return ''.join(chars)
 
 
-def render_char_to_bitmap(font, char, height, padding=0):
+def render_char_to_bitmap(font, char, padding=0):
   """Render a character to a bitmap with fixed height but variable width"""
-  # Set antialiasing to False for sharper edges
   font.antialiased = False
 
   # Render the character to get its dimensions
@@ -74,29 +72,25 @@ def render_char_to_bitmap(font, char, height, padding=0):
     print(f"Warning: Could not render character '{char}' (code: {ord(char)})")
     return None, 0
 
-  # Create a surface with the character's width (plus padding) and fixed height
+  print(repr(char), text_rect.width, text_rect.height)
   width = text_rect.width + (padding * 2)
-  if width == 0:  # Handle zero-width characters
-    width = font.size // 2  # Use a reasonable minimum width
+  if width == 0:
+    width = font.size // 2
 
-  # Create a new surface for the character
+  height = font.get_sized_height()
+
   char_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-  char_surf.fill((0, 0, 0, 0))  # Transparent background
+  char_surf.fill((0, 0, 0, 0))
 
-  # Center the character vertically
   y_pos = (height - text_rect.height) // 2
-
-  # Position the character with padding
   char_surf.blit(text_surf, (padding, y_pos))
 
-  # Convert to bitmap
   bitmap = []
   for y in range(height):
     row = []
     for x in range(width):
       try:
         pixel = char_surf.get_at((x, y))
-        # Check if pixel is not transparent/black
         is_on = pixel[0] > 0 or pixel[1] > 0 or pixel[2] > 0
         row.append(1 if is_on else 0)
       except IndexError:
@@ -106,7 +100,7 @@ def render_char_to_bitmap(font, char, height, padding=0):
   return bitmap, width
 
 
-def generate_font_mapping(font, charset, height, padding=0):
+def generate_font_mapping(font, charset, padding=0):
   """Generate a mapping of characters to their bitmaps"""
   char_map = {}
   max_width = 0
@@ -115,12 +109,13 @@ def generate_font_mapping(font, charset, height, padding=0):
   print(f"Generating bitmaps for {len(charset)} characters...")
 
   for char in charset:
-    bitmap, width = render_char_to_bitmap(font, char, height, padding)
+    # Pass height as None to use font's natural height
+    bitmap, width = render_char_to_bitmap(font, char, padding)
     if bitmap:
       char_map[char] = {
         "bitmap": bitmap,
         "width": width,
-        "height": height
+        "height": len(bitmap)
       }
       max_width = max(max_width, width)
       min_width = min(min_width, width)
@@ -133,14 +128,13 @@ def generate_font_mapping(font, charset, height, padding=0):
   return char_map
 
 
-def save_font_mapping(mapping, output_path, font_name, font_size, char_height, padding):
+def save_font_mapping(mapping, output_path, font_name, font_size, padding):
   """Save the character mapping to a JSON file"""
   # Create metadata
   font_data = {
     "metadata": {
       "font": font_name,
       "size": font_size,
-      "char_height": char_height,
       "padding": padding,
       "char_count": len(mapping),
       "generated": pygame.time.get_ticks()
@@ -200,14 +194,14 @@ def main():
     print('charset size', len(charset), charset)
 
     # Generate character mapping
-    char_map = generate_font_mapping(font, charset, args.char_height, args.padding)
+    char_map = generate_font_mapping(font, charset, args.padding)
 
     # Save mapping to JSON file
     font_name = args.font
     if os.path.exists(args.font):
       font_name = Path(args.font).name
 
-    save_font_mapping(char_map, args.output, font_name, args.font_size, args.char_height, args.padding)
+    save_font_mapping(char_map, args.output, font_name, args.font_size, args.padding)
 
     return 0
 
