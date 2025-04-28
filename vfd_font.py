@@ -106,7 +106,7 @@ def generate_font_mapping(font, charset):
 
   for char in charset:
     bitmap, width, height = render_char_to_bitmap(font, char)
-    print(repr(char), width, height)
+    # print(repr(char), width, height)
     if bitmap:
       char_map[char] = {
         "bitmap": bitmap,
