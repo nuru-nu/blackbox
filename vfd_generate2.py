@@ -39,6 +39,7 @@ PADDING = 0
 
 # Scale cursor with font size
 CURSOR_WIDTH = 10
+CURSOR_Y0 = 2
 CURSOR_HEIGHT = 20
 CURSOR_SECS = 0.5
 WAITING_MESSAGE = ""
@@ -130,7 +131,7 @@ class Cursor:
     def set(value):
       for y in range(CURSOR_HEIGHT):
         for x in range(CURSOR_WIDTH):
-          disp[y0 + y][x0 + x] = value
+          disp[y0 + CURSOR_Y0+ y][x0 + x] = value
     remaining = secs
     set(self.state)
     while remaining > 0:
