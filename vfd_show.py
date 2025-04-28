@@ -11,7 +11,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='VFD Display')
     parser.add_argument('--ip', default='0.0.0.0', help='UDP listen IP address')
     parser.add_argument('--port', type=int, default=31337, help='UDP listen port')
-    parser.add_argument('--scale', type=int, default=2, help='Display scale factor')
+    parser.add_argument('--scale', type=int, default=4, help='Display scale factor')
     return parser.parse_args()
 
 # Get command line arguments
