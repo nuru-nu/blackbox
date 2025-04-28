@@ -26,7 +26,7 @@ def parse_args():
                         'Path to font file or name of system font (some examples: "Courier New", "Courier", '
                         '"Lucida Console", "Monaco" [12], "DejaVu Sans Mono") ... '
                         'see `fc-list` or `pygame.font.get_fonts()`')
-    parser.add_argument('--text', default='20250424_044729.json', help='Path to JSON file containing text array')
+    parser.add_argument('--text', default='20250424_122832.json', help='Path to JSON file containing text array')
     parser.add_argument('--first-hours', type=float, default=5, help='Hours to spend on first text')
     parser.add_argument('--last-hours', type=float, default=19, help='Hours to spend on last text')
     parser.add_argument('--default-hours', type=float, default=24, help='Hours to spend on each text between first and last')
