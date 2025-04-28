@@ -57,20 +57,19 @@ def render_char_to_bitmap(font, char):
   try:
     font.load_char(char, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_MONO)
     bitmap = font.glyph.bitmap
-    width = bitmap.width
-    height = bitmap.rows
+    # Use advance.x for the width the character occupies in text
+    width = font.glyph.advance.x // 64  # advance.x is in 1/64th pixels
+    # Use a consistent height (e.g., font.size.height // 64 or bitmap.rows)
+    height = font.size.height // 64 if font.size and font.size.height else bitmap.rows
 
     # Convert the bitmap buffer to a 2D numpy array (monochrome)
-    arr = np.array(bitmap.buffer, dtype=np.uint8).reshape((height, bitmap.pitch))
-    # Unpack bits to get 0/1 per pixel
+    arr = np.array(bitmap.buffer, dtype=np.uint8).reshape((bitmap.rows, bitmap.pitch))
     arr = np.unpackbits(arr, axis=1)[:, :bitmap.width]
-    # No horizontal padding
-    # Convert to list of lists
     bitmap_list = arr.tolist()
-    return bitmap_list, width
+    return bitmap_list, width, height
   except Exception as e:
     print(f"Warning: Could not render character '{char}' (code: {ord(char)}): {e}")
-    return None, 0
+    return None, 0, 0
 
 
 def generate_font_mapping(font, charset):
@@ -82,12 +81,13 @@ def generate_font_mapping(font, charset):
   print(f"Generating bitmaps for {len(charset)} characters...")
 
   for char in charset:
-    bitmap, width = render_char_to_bitmap(font, char)
+    bitmap, width, height = render_char_to_bitmap(font, char)
+    print(repr(char), width, height)
     if bitmap:
       char_map[char] = {
         "bitmap": bitmap,
         "width": width,
-        "height": len(bitmap)
+        "height": height
       }
       max_width = max(max_width, width)
       min_width = min(min_width, width)
