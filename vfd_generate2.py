@@ -6,9 +6,7 @@ https://github.com/BorisBegemann/Futaba-VFD
 NOTE: You need the updated firmware with the UDP handler!
 """
 
-import sys
 import time
-import os
 import socket
 import argparse
 import json
@@ -41,7 +39,8 @@ PADDING = 0
 
 # Scale cursor with font size
 CURSOR_WIDTH = 10
-CURSOR_HEIGHT = 18
+CURSOR_HEIGHT = 20
+CURSOR_SECS = 0.5
 WAITING_MESSAGE = ""
 
 SENTENCE_RE = re.compile(r'([^.!?]+[.!?]+\s*)')
@@ -120,6 +119,32 @@ def parse_sentences(start, texts):
   print(f'from {all_sentences[0][1]} to {all_sentences[-1][2]}')
   return all_sentences
 
+
+class Cursor:
+
+  def __init__(self):
+    self.state = 0
+    self.secs = CURSOR_SECS
+
+  def sleep(self, disp, secs, x0, y0):
+    def set(value):
+      for y in range(CURSOR_HEIGHT):
+        for x in range(CURSOR_WIDTH):
+          disp[y0 + y][x0 + x] = value
+    remaining = secs
+    set(self.state)
+    while remaining > 0:
+      secs = min(remaining, self.secs)
+      remaining -= secs
+      self.secs -= secs
+      send(disp)
+      time.sleep(secs)
+      if self.secs <= 0:
+        self.secs = CURSOR_SECS
+        self.state = 1 - self.state
+        set(self.state)
+    set(0)
+
 def play_sentence(sentence, t1, t2, font):
   ts = []
   for i, c in enumerate(sentence):
@@ -144,10 +169,11 @@ def play_sentence(sentence, t1, t2, font):
   x0, y0 = PADDING, PADDING
   fc = font['characters']
   t = 0
+  cursor = Cursor()
   for i, c in enumerate(sentence):
     w = fc[c]['width']
     x0 += w
-    scroll = x0 - (DISPLAY_WIDTH - PADDING)
+    scroll = x0 - (DISPLAY_WIDTH - PADDING - CURSOR_WIDTH)
     if scroll > 0:
       disp = [row[scroll:] + [0] * (DISPLAY_WIDTH - scroll) for row in disp]
       x0 -= scroll
@@ -158,8 +184,7 @@ def play_sentence(sentence, t1, t2, font):
     t += ts[i]
     dt = t - (time.time() - t1.timestamp())
     if dt > 0:
-      send(disp)
-      time.sleep(dt)
+      cursor.sleep(disp, dt, x0, y0)
 
 
 def main():
