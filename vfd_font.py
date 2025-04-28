@@ -22,7 +22,6 @@ def parse_args():
   parser.add_argument('--font-size', type=int, default=18, help='Font size in pixels (optional, uses font default if not set)')
   parser.add_argument('--chars', default=None, help='Specific characters to include (if not specified, includes ASCII 32-126 plus common symbols)')
   parser.add_argument('--chars-file', default=None, help='JSON file that contains characters to include')
-  parser.add_argument('--padding', type=int, default=0, help='Horizontal padding for each character')
   return parser.parse_args()
 
 
@@ -53,21 +52,19 @@ def get_default_charset():
   return ''.join(chars)
 
 
-def render_char_to_bitmap(font, char, padding=0):
+def render_char_to_bitmap(font, char):
   """Render a character to a bitmap with fixed height but variable width using freetype-py"""
   try:
     font.load_char(char, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_MONO)
     bitmap = font.glyph.bitmap
-    width = bitmap.width + (padding * 2)
+    width = bitmap.width
     height = bitmap.rows
 
     # Convert the bitmap buffer to a 2D numpy array (monochrome)
     arr = np.array(bitmap.buffer, dtype=np.uint8).reshape((height, bitmap.pitch))
     # Unpack bits to get 0/1 per pixel
     arr = np.unpackbits(arr, axis=1)[:, :bitmap.width]
-    # Pad horizontally
-    if padding > 0:
-      arr = np.pad(arr, ((0,0), (padding, padding)), 'constant', constant_values=0)
+    # No horizontal padding
     # Convert to list of lists
     bitmap_list = arr.tolist()
     return bitmap_list, width
@@ -76,7 +73,7 @@ def render_char_to_bitmap(font, char, padding=0):
     return None, 0
 
 
-def generate_font_mapping(font, charset, padding=0):
+def generate_font_mapping(font, charset):
   """Generate a mapping of characters to their bitmaps using freetype-py"""
   char_map = {}
   max_width = 0
@@ -85,7 +82,7 @@ def generate_font_mapping(font, charset, padding=0):
   print(f"Generating bitmaps for {len(charset)} characters...")
 
   for char in charset:
-    bitmap, width = render_char_to_bitmap(font, char, padding)
+    bitmap, width = render_char_to_bitmap(font, char)
     if bitmap:
       char_map[char] = {
         "bitmap": bitmap,
@@ -103,13 +100,12 @@ def generate_font_mapping(font, charset, padding=0):
   return char_map
 
 
-def save_font_mapping(mapping, output_path, font_name, font_size, padding):
+def save_font_mapping(mapping, output_path, font_name, font_size):
   """Save the character mapping to a JSON file"""
   font_data = {
     "metadata": {
       "font": font_name,
       "size": font_size,
-      "padding": padding,
       "char_count": len(mapping),
       "generated": int(time.time() * 1000)
     },
@@ -160,14 +156,14 @@ def main():
     print('charset size', len(charset), charset)
 
     # Generate character mapping
-    char_map = generate_font_mapping(font, charset, args.padding)
+    char_map = generate_font_mapping(font, charset)
 
     # Save mapping to JSON file
     font_name = args.font
     if os.path.exists(args.font):
       font_name = Path(args.font).name
 
-    save_font_mapping(char_map, args.output, font_name, args.font_size, args.padding)
+    save_font_mapping(char_map, args.output, font_name, args.font_size)
 
     return 0
 
