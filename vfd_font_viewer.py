@@ -81,7 +81,6 @@ def main():
         return 1
 
     # Get font properties
-    char_height = metadata.get("char_height", 24)
     font_name = metadata.get("font", "Unknown")
     font_size = metadata.get("size", 0)
     char_count = metadata.get("char_count", len(characters))
@@ -92,12 +91,13 @@ def main():
 
     # Find the maximum character width
     max_width = max(char.get("width", 0) for char in characters.values())
+    max_height = max(char.get("height", 0) for char in characters.values())
 
     # Calculate window dimensions
     scale = args.scale
     spacing = args.spacing
     window_width = cols * (max_width * scale + spacing) + spacing
-    window_height = rows * (char_height * scale + spacing) + spacing
+    window_height = rows * (max_height * scale + spacing) + spacing
 
     # Convert colors
     bg_color = hex_to_rgb(args.bg_color)
@@ -113,19 +113,6 @@ def main():
     # Create a font for character labels
     label_font = pygame.font.SysFont("monospace", 10)
 
-    # Characters that need baseline adjustment
-    baseline_adjustments = {
-        ',': 6,  # Move comma down by 6 pixels
-        '.': 6,  # Move period down by 6 pixels
-        ';': 6,  # Move semicolon down by 6 pixels
-        ':': 3,  # Move colon down by 3 pixels
-        '_': 6,  # Move underscore down by 6 pixels
-        'g': 2,  # Adjust for characters with descenders
-        'j': 2,
-        'p': 2,
-        'q': 2,
-        'y': 2
-    }
 
     # Main loop
     running = True
@@ -146,7 +133,7 @@ def main():
         screen.fill(bg_color)
 
         # Draw grid
-        draw_grid(screen, grid_color, max_width, char_height, cols, rows, scale, spacing)
+        draw_grid(screen, grid_color, max_width, max_height, cols, rows, scale, spacing)
 
         # Draw characters
         char_index = 0
@@ -157,8 +144,7 @@ def main():
             x = col * (max_width * scale + spacing) + spacing
 
             # Apply baseline adjustment if needed
-            baseline_offset = baseline_adjustments.get(char, 0) * scale
-            y = row * (char_height * scale + spacing) + spacing + baseline_offset
+            y = row * (max_height * scale + spacing) + spacing
 
             # Draw character bitmap
             bitmap = char_data.get("bitmap", [])
