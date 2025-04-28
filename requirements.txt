@@ -1,6 +1,8 @@
 aiohttp
 colorama
 evdev; sys_platform == 'linux'
+freetype-py
 keyboard; sys_platform == 'darwin'
+numpy
 paho-mqtt
 pygame
