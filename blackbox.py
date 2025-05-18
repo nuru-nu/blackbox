@@ -44,10 +44,12 @@ def get_ip(hostname):
 
 port = 1883
 
-client = mqtt.Client()
-client.username_pw_set('blackbox', 'blackbox')
 
-if args.broker:
+client = None
+if args.broker and args.shelly:
+  print('Using', args.broker, 'to connect to shelly', args.shelly)
+  client = mqtt.Client()
+  client.username_pw_set('blackbox', 'blackbox')
   client.connect(get_ip(args.broker), port, 60)
 
 loop = asyncio.get_event_loop()
@@ -90,7 +92,7 @@ def log(level, msg):
 
 
 def shelly_set(below22: float):
-  if not args.shelly: return
+  if not client: return
   value = get('value_base') + below22 * get('value_mult')
   brightness = min(100, int(value / 255 * 100))
   log('debug', f'shelly_set {int(value)} -> {brightness}')
@@ -237,7 +239,8 @@ player_thread = threading.Thread(target=player)
 def on_connect(client, userdata, flags, reason_code):
   set('mqtt', f'connected: reason_code={reason_code}')
 
-client.on_connect = on_connect
+if client:
+  client.on_connect = on_connect
 
 
 def flicker():
@@ -394,7 +397,8 @@ async def post_set(request: web.Request):
   return web.json_response(dict(status='ok'))
 
 
-client.loop_start()
+if client:
+  client.loop_start()
 player_thread.start()
 flicker_thread.start()
 if events_thread: events_thread.start()
